@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import calendar # Nueva librería para manejar nombres de meses
+import calendar
 
 # --- CONFIGURACIÓN ESTÉTICA ---
 st.set_page_config(page_title="Finanzas R&K", layout="centered", page_icon="💰")
@@ -30,14 +30,21 @@ except Exception as e:
     st.error(f"Error de conexión: {e}")
     st.stop()
 
-# --- FUNCIONES DE LECTURA ---
+# --- FUNCIONES DE LECTURA (BLINDADA) ---
 def obtener_datos():
     data = ws_registro.get_all_records()
+    columnas = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
+    
     if not data:
-        return pd.DataFrame(columns=['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion'])
-    df = pd.DataFrame(data)
+        # Si está vacío, devolvemos un DataFrame vacío pero CON LA ESTRUCTURA CORRECTA
+        df = pd.DataFrame(columns=columnas)
+    else:
+        df = pd.DataFrame(data)
+
+    # Conversión segura de tipos (Evita el error AttributeError)
     df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
-    df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce') 
+    df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
+    
     return df
 
 def obtener_cuentas():
@@ -49,7 +56,7 @@ def obtener_presupuestos():
     presupuestos = {row['Categoria']: row['Tope_Mensual'] for row in records}
     return presupuestos
 
-# --- BARRA LATERAL (CONFIGURACIÓN) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("⚙️ Configuración")
     
@@ -70,68 +77,69 @@ with st.sidebar:
                 st.success(f"Categoría {nueva_cat} creada.")
                 st.rerun()
 
-# --- TÍTULO Y SELECTOR DE TIEMPO (LO NUEVO) ---
+# --- TÍTULO Y SELECTOR DE TIEMPO ---
 st.title("💰 Finanzas Rodrigo & Krys")
 
-# Cargamos datos una sola vez
 df = obtener_datos()
 
-# Contenedor para elegir FECHA
 with st.container(border=True):
     col_f1, col_f2 = st.columns(2)
-    
-    # Nombres de meses en español
     meses_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                 "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
     
     mes_actual = datetime.now().month
     anio_actual = datetime.now().year
 
-    # Selectores (Por defecto muestra el mes actual)
     mes_seleccionado_nombre = col_f1.selectbox("📅 Seleccionar Mes", meses_es, index=mes_actual-1)
     anio_seleccionado = col_f2.number_input("Seleccionar Año", min_value=2024, max_value=2030, value=anio_actual, step=1)
-
-    # Convertir nombre de mes a número (Enero = 1)
+    
     mes_seleccionado_idx = meses_es.index(mes_seleccionado_nombre) + 1
 
-# --- LÓGICA DE FILTRADO ---
-# 1. Datos del MES ELEGIDO (Para presupuestos y reporte mensual)
-df_filtrado = df[
-    (df['Fecha'].dt.month == mes_seleccionado_idx) & 
-    (df['Fecha'].dt.year == anio_seleccionado)
-]
+# --- LÓGICA DE FILTRADO (AQUÍ ESTABA EL ERROR) ---
+if not df.empty and df['Fecha'].notna().any():
+    # Solo intentamos filtrar si hay datos válidos
+    df_filtrado = df[
+        (df['Fecha'].dt.month == mes_seleccionado_idx) & 
+        (df['Fecha'].dt.year == anio_seleccionado)
+    ]
+else:
+    # Si está vacío, el filtrado también es vacío
+    df_filtrado = df 
 
-# 2. Datos TOTALES (Para calcular saldo real actual de cuentas)
-# (Las cuentas no dependen del mes, sino de todo el historial)
+# Cálculos de Saldos Globales (Independientes del mes)
 saldos = {}
 lista_cuentas = obtener_cuentas()
 for c in lista_cuentas:
-    ing = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-    gas = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-    saldos[c] = ing - gas
+    if not df.empty:
+        ing = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+        gas = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+        saldos[c] = ing - gas
+    else:
+        saldos[c] = 0
 capital_total_actual = sum(saldos.values())
 
-# --- BLOQUE 1: RESUMEN DEL MES ELEGIDO ---
+# --- BLOQUE 1: RESUMEN DEL MES ---
 st.subheader(f"📊 Resumen de {mes_seleccionado_nombre} {anio_seleccionado}")
 
-# Cálculos del mes
-ingreso_mes = df_filtrado[df_filtrado['Tipo'] == 'Ingreso']['Monto'].sum()
-gasto_mes = df_filtrado[df_filtrado['Tipo'] == 'Gasto']['Monto'].sum()
-balance_mes = ingreso_mes - gasto_mes
+if not df_filtrado.empty:
+    ingreso_mes = df_filtrado[df_filtrado['Tipo'] == 'Ingreso']['Monto'].sum()
+    gasto_mes = df_filtrado[df_filtrado['Tipo'] == 'Gasto']['Monto'].sum()
+    balance_mes = ingreso_mes - gasto_mes
+else:
+    ingreso_mes = 0
+    gasto_mes = 0
+    balance_mes = 0
 
 m1, m2, m3 = st.columns(3)
 m1.metric("Ingresos (Mes)", f"S/ {ingreso_mes:.2f}")
 m2.metric("Gastos (Mes)", f"S/ {gasto_mes:.2f}", delta_color="inverse")
-# El balance muestra cuánto "sobró" o "faltó" ese mes específico
 m3.metric("Ahorro del Mes", f"S/ {balance_mes:.2f}", 
           delta=f"{(balance_mes/ingreso_mes)*100:.0f}% Ahorrado" if ingreso_mes > 0 else None)
 
 st.divider()
 
-# --- BLOQUE 2: CAPITAL REAL (CUENTAS) ---
-# Esto siempre muestra la realidad actual, independiente del mes que mires
-st.subheader(f"💳 Saldos Actuales (Total Disponible: S/ {capital_total_actual:.2f})")
-
+# --- BLOQUE 2: CAPITAL REAL ---
+st.subheader(f"💳 Saldos Actuales (Total: S/ {capital_total_actual:.2f})")
 cols_c = st.columns(3)
 idx_c = 0
 for cuenta, saldo in saldos.items():
@@ -148,11 +156,14 @@ for cuenta, saldo in saldos.items():
 
 st.divider()
 
-# --- BLOQUE 3: PRESUPUESTOS (Dinámicos según Mes Elegido) ---
-st.subheader(f"🚦 Control de Gastos: {mes_seleccionado_nombre}")
+# --- BLOQUE 3: PRESUPUESTOS ---
+st.subheader(f"🚦 Control: {mes_seleccionado_nombre}")
 presupuestos_dict = obtener_presupuestos()
-# Agrupamos gastos solo del mes seleccionado
-gastos_cat = df_filtrado[df_filtrado['Tipo'] == 'Gasto'].groupby('Categoria')['Monto'].sum()
+
+if not df_filtrado.empty:
+    gastos_cat = df_filtrado[df_filtrado['Tipo'] == 'Gasto'].groupby('Categoria')['Monto'].sum()
+else:
+    gastos_cat = {}
 
 cols_p = st.columns(2)
 idx_p = 0
@@ -164,13 +175,13 @@ for cat, tope in presupuestos_dict.items():
         st.write(f"**{cat}**")
         st.progress(min(pct, 1.0))
         st.caption(f"S/ {gastado:.1f} / S/ {tope} ({pct*100:.0f}%)")
-        if pct >= 1: st.error("¡Límite excedido!")
+        if pct >= 1: st.error("¡Excedido!")
     idx_p += 1
 
 st.divider()
 
 # --- BLOQUE 4: NUEVA OPERACIÓN ---
-st.subheader("📝 Registrar Operación (Tiempo Real)")
+st.subheader("📝 Registrar Operación")
 tipo_op = st.radio("Acción", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True)
 
 with st.form("main_form", clear_on_submit=True):
@@ -185,7 +196,6 @@ with st.form("main_form", clear_on_submit=True):
     else:
         cta = c2.selectbox("Cuenta", lista_cuentas)
         if tipo_op == "Gasto 📤":
-            # Unimos las categorías de presupuesto con "Otros"
             cat = st.selectbox("Categoría", list(presupuestos_dict.keys()) + ["Otros"])
         else:
             cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo", "Otros"])
@@ -194,35 +204,37 @@ with st.form("main_form", clear_on_submit=True):
     desc = st.text_input("Descripción")
     
     if st.form_submit_button("Registrar"):
-        # Usamos fecha y hora actuales del servidor
         fecha = datetime.now().strftime("%Y-%m-%d")
         hora = datetime.now().strftime("%H:%M:%S")
         
         if tipo_op == "Transferencia 🔄":
             if cta_origen == cta_destino:
-                st.error("Origen y Destino son iguales")
+                st.error("Cuentas iguales")
             else:
                 r1 = [fecha, hora, user, cta_origen, "Gasto", "Transferencia/Salida", monto, f"A {cta_destino}: {desc}"]
                 r2 = [fecha, hora, user, cta_destino, "Ingreso", "Transferencia/Entrada", monto, f"De {cta_origen}: {desc}"]
                 ws_registro.append_row(r1)
                 ws_registro.append_row(r2)
-                st.success("Transferencia exitosa")
+                st.success("Hecho")
                 st.rerun()
         else:
             tipo_real = "Gasto" if "Gasto" in tipo_op else "Ingreso"
             row = [fecha, hora, user, cta, tipo_real, cat, monto, desc]
             ws_registro.append_row(row)
-            st.success("Registrado")
+            st.success("Hecho")
             st.rerun()
 
 # --- BLOQUE 5: ELIMINACIÓN ---
 with st.expander("🗑️ Eliminar Registros"):
-    st.dataframe(df.sort_values(by="Fecha", ascending=False).head(5), use_container_width=True)
-    if st.button("BORRAR ÚLTIMO MOVIMIENTO"):
-        total_rows = len(ws_registro.get_all_values())
-        if total_rows > 1:
-            ws_registro.delete_rows(total_rows)
-            st.success("Borrado. Actualizando...")
-            st.rerun()
-        else:
-            st.warning("Nada que borrar")
+    if not df.empty:
+        st.dataframe(df.sort_values(by="Fecha", ascending=False).head(5), use_container_width=True)
+        if st.button("BORRAR ÚLTIMO MOVIMIENTO"):
+            total_rows = len(ws_registro.get_all_values())
+            if total_rows > 1:
+                ws_registro.delete_rows(total_rows)
+                st.success("Borrado. Actualizando...")
+                st.rerun()
+            else:
+                st.warning("Nada que borrar")
+    else:
+        st.info("No hay registros para borrar.")
