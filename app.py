@@ -3,10 +3,41 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import calendar
+import time
+import base64
 
-# --- CONFIGURACIÓN ESTÉTICA ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Finanzas R&K", layout="centered", page_icon="💰")
+
+# --- FUNCIÓN DE FONDO (ESTO ES LO NUEVO) ---
+def poner_fondo(imagen_local):
+    """Lee una imagen local y la pone de fondo usando CSS y Base64"""
+    with open(imagen_local, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode()
+    
+    css = f"""
+    <style>
+    .stApp {{
+        background-image: url(data:image/jpg;base64,{encoded_string});
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    /* Hacemos los contenedores semi-transparentes para que se lea el texto */
+    div[data-testid="stExpander"], div[data-testid="stContainer"] {{
+        background-color: rgba(255, 255, 255, 0.85);
+        border-radius: 10px;
+        padding: 10px;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+# --- ACTIVAR EL FONDO ---
+try:
+    poner_fondo("fondo.jpg")
+except FileNotFoundError:
+    st.warning("⚠️ No encontré la imagen 'fondo.jpg'. Asegúrate de ponerla en la carpeta.")
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
@@ -21,220 +52,174 @@ def conectar_google_sheets():
     sheet = client.open("Finanzas_RodrigoKrys")
     return sheet
 
+# --- REINTENTOS SEGUROS (Retry Logic) ---
+def intento_seguro(funcion_gspread):
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            return funcion_gspread()
+        except gspread.exceptions.APIError as e:
+            if i == max_retries - 1: raise e
+            time.sleep(2 * (i + 1))
+        except Exception as e:
+            raise e
+
 try:
     sh = conectar_google_sheets()
     ws_registro = sh.worksheet("Registro")
     ws_cuentas = sh.worksheet("Cuentas")
     ws_presupuestos = sh.worksheet("Presupuestos")
-except Exception as e:
-    st.error(f"Error de conexión: {e}")
+except Exception:
+    st.error("Error conectando. Recarga en 1 min.")
     st.stop()
 
-# --- FUNCIONES DE LECTURA (BLINDADA) ---
+# --- FUNCIONES DE DATOS ---
+@st.cache_data(ttl=60)
 def obtener_datos():
-    data = ws_registro.get_all_records()
+    data = intento_seguro(lambda: ws_registro.get_all_records())
     columnas = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
-    
-    if not data:
-        # Si está vacío, devolvemos un DataFrame vacío pero CON LA ESTRUCTURA CORRECTA
-        df = pd.DataFrame(columns=columnas)
-    else:
-        df = pd.DataFrame(data)
-
-    # Conversión segura de tipos (Evita el error AttributeError)
+    if not data: return pd.DataFrame(columns=columnas)
+    df = pd.DataFrame(data)
     df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
     df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
-    
     return df
 
+@st.cache_data(ttl=600)
 def obtener_cuentas():
-    cuentas = ws_cuentas.col_values(1)
+    cuentas = intento_seguro(lambda: ws_cuentas.col_values(1))
     return cuentas[1:] if len(cuentas) > 1 else ["Efectivo"]
 
+@st.cache_data(ttl=600)
 def obtener_presupuestos():
-    records = ws_presupuestos.get_all_records()
-    presupuestos = {row['Categoria']: row['Tope_Mensual'] for row in records}
-    return presupuestos
+    records = intento_seguro(lambda: ws_presupuestos.get_all_records())
+    return {row['Categoria']: row['Tope_Mensual'] for row in records}
 
-# --- BARRA LATERAL ---
+def limpiar_cache(): st.cache_data.clear()
+
+# --- INTERFAZ ---
 with st.sidebar:
-    st.header("⚙️ Configuración")
-    
-    with st.expander("➕ Agregar Nueva Cuenta"):
-        nueva_cuenta = st.text_input("Nombre cuenta nueva")
-        if st.button("Crear Cuenta"):
-            if nueva_cuenta:
-                ws_cuentas.append_row([nueva_cuenta])
-                st.success(f"Cuenta {nueva_cuenta} creada.")
-                st.rerun()
+    st.header("⚙️ Config")
+    with st.expander("➕ Cuentas"):
+        nueva = st.text_input("Nueva Cuenta")
+        if st.button("Crear") and nueva:
+            ws_cuentas.append_row([nueva])
+            limpiar_cache()
+            st.success("OK"); time.sleep(1); st.rerun()
+    with st.expander("🎯 Presupuestos"):
+        n_cat = st.text_input("Categoría")
+        n_tope = st.number_input("Tope", min_value=0)
+        if st.button("Crear") and n_cat:
+            ws_presupuestos.append_row([n_cat, n_tope])
+            limpiar_cache()
+            st.success("OK"); time.sleep(1); st.rerun()
 
-    with st.expander("🎯 Agregar Nuevo Presupuesto"):
-        nueva_cat = st.text_input("Nombre Categoría")
-        nuevo_tope = st.number_input("Tope Mensual", min_value=0)
-        if st.button("Crear Presupuesto"):
-            if nueva_cat:
-                ws_presupuestos.append_row([nueva_cat, nuevo_tope])
-                st.success(f"Categoría {nueva_cat} creada.")
-                st.rerun()
-
-# --- TÍTULO Y SELECTOR DE TIEMPO ---
 st.title("💰 Finanzas Rodrigo & Krys")
 
-df = obtener_datos()
+try:
+    df = obtener_datos()
+    lista_cuentas = obtener_cuentas()
+    presupuestos_dict = obtener_presupuestos()
+except:
+    st.warning("⚠️ Tráfico alto. Espera 5s..."); time.sleep(5); st.rerun()
 
-with st.container(border=True):
-    col_f1, col_f2 = st.columns(2)
-    meses_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    
-    mes_actual = datetime.now().month
-    anio_actual = datetime.now().year
-
-    mes_seleccionado_nombre = col_f1.selectbox("📅 Seleccionar Mes", meses_es, index=mes_actual-1)
-    anio_seleccionado = col_f2.number_input("Seleccionar Año", min_value=2024, max_value=2030, value=anio_actual, step=1)
-    
-    mes_seleccionado_idx = meses_es.index(mes_seleccionado_nombre) + 1
-
-# --- LÓGICA DE FILTRADO (AQUÍ ESTABA EL ERROR) ---
-if not df.empty and df['Fecha'].notna().any():
-    # Solo intentamos filtrar si hay datos válidos
-    df_filtrado = df[
-        (df['Fecha'].dt.month == mes_seleccionado_idx) & 
-        (df['Fecha'].dt.year == anio_seleccionado)
-    ]
-else:
-    # Si está vacío, el filtrado también es vacío
-    df_filtrado = df 
-
-# Cálculos de Saldos Globales (Independientes del mes)
-saldos = {}
-lista_cuentas = obtener_cuentas()
-for c in lista_cuentas:
-    if not df.empty:
-        ing = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-        gas = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldos[c] = ing - gas
-    else:
-        saldos[c] = 0
-capital_total_actual = sum(saldos.values())
-
-# --- BLOQUE 1: RESUMEN DEL MES ---
-st.subheader(f"📊 Resumen de {mes_seleccionado_nombre} {anio_seleccionado}")
-
-if not df_filtrado.empty:
-    ingreso_mes = df_filtrado[df_filtrado['Tipo'] == 'Ingreso']['Monto'].sum()
-    gasto_mes = df_filtrado[df_filtrado['Tipo'] == 'Gasto']['Monto'].sum()
-    balance_mes = ingreso_mes - gasto_mes
-else:
-    ingreso_mes = 0
-    gasto_mes = 0
-    balance_mes = 0
-
-m1, m2, m3 = st.columns(3)
-m1.metric("Ingresos (Mes)", f"S/ {ingreso_mes:.2f}")
-m2.metric("Gastos (Mes)", f"S/ {gasto_mes:.2f}", delta_color="inverse")
-m3.metric("Ahorro del Mes", f"S/ {balance_mes:.2f}", 
-          delta=f"{(balance_mes/ingreso_mes)*100:.0f}% Ahorrado" if ingreso_mes > 0 else None)
-
-st.divider()
-
-# --- BLOQUE 2: CAPITAL REAL ---
-st.subheader(f"💳 Saldos Actuales (Total: S/ {capital_total_actual:.2f})")
-cols_c = st.columns(3)
-idx_c = 0
-for cuenta, saldo in saldos.items():
-    with cols_c[idx_c % 3]:
-        with st.container(border=True):
-            st.write(f"**{cuenta}**")
-            if saldo >= 0:
-                st.metric("Saldo", f"S/ {saldo:.2f}")
-                pct = (saldo / capital_total_actual) if capital_total_actual > 0 else 0
-                st.progress(min(max(pct, 0.0), 1.0))
-            else:
-                st.metric("Saldo", f"S/ {saldo:.2f}", delta="Deuda", delta_color="inverse")
-    idx_c += 1
-
-st.divider()
-
-# --- BLOQUE 3: PRESUPUESTOS ---
-st.subheader(f"🚦 Control: {mes_seleccionado_nombre}")
-presupuestos_dict = obtener_presupuestos()
-
-if not df_filtrado.empty:
-    gastos_cat = df_filtrado[df_filtrado['Tipo'] == 'Gasto'].groupby('Categoria')['Monto'].sum()
-else:
-    gastos_cat = {}
-
-cols_p = st.columns(2)
-idx_p = 0
-for cat, tope in presupuestos_dict.items():
-    gastado = gastos_cat.get(cat, 0)
-    pct = (gastado / tope) if tope > 0 else 0
-    
-    with cols_p[idx_p % 2]:
-        st.write(f"**{cat}**")
-        st.progress(min(pct, 1.0))
-        st.caption(f"S/ {gastado:.1f} / S/ {tope} ({pct*100:.0f}%)")
-        if pct >= 1: st.error("¡Excedido!")
-    idx_p += 1
-
-st.divider()
-
-# --- BLOQUE 4: NUEVA OPERACIÓN ---
-st.subheader("📝 Registrar Operación")
-tipo_op = st.radio("Acción", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True)
-
-with st.form("main_form", clear_on_submit=True):
+# CONTENEDOR FILTROS (CON FONDO BLANCO SEMI-TRANSPARENTE)
+with st.container():
     c1, c2 = st.columns(2)
-    user = c1.selectbox("Usuario", ["Rodrigo", "Krys"])
-    
-    if tipo_op == "Transferencia 🔄":
-        st.info("Mover dinero entre cuentas")
-        cta_origen = c2.selectbox("Desde", lista_cuentas)
-        cta_destino = st.selectbox("Hacia", lista_cuentas)
-        cat = "Transferencia"
-    else:
-        cta = c2.selectbox("Cuenta", lista_cuentas)
-        if tipo_op == "Gasto 📤":
-            cat = st.selectbox("Categoría", list(presupuestos_dict.keys()) + ["Otros"])
-        else:
-            cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo", "Otros"])
+    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    now = datetime.now()
+    mes_nom = c1.selectbox("Mes", meses, index=now.month-1)
+    anio = c2.number_input("Año", value=now.year, min_value=2024)
+    mes_idx = meses.index(mes_nom) + 1
 
-    monto = st.number_input("Monto", min_value=0.01, format="%.2f")
-    desc = st.text_input("Descripción")
-    
-    if st.form_submit_button("Registrar"):
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        hora = datetime.now().strftime("%H:%M:%S")
+if not df.empty and df['Fecha'].notna().any():
+    df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == anio)]
+else: df_f = df
+
+saldos = {c: (df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum() - df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()) if not df.empty else 0 for c in lista_cuentas}
+total_cap = sum(saldos.values())
+
+# 1. RESUMEN
+with st.container():
+    st.subheader(f"📊 {mes_nom} {anio}")
+    ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
+    gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Ingresos", f"S/ {ing_m:.2f}")
+    m2.metric("Gastos", f"S/ {gas_m:.2f}")
+    m3.metric("Ahorro", f"S/ {ing_m - gas_m:.2f}")
+
+st.divider()
+
+# 2. CUENTAS
+with st.container():
+    st.subheader(f"💳 Total: S/ {total_cap:.2f}")
+    cc = st.columns(3)
+    ix = 0
+    for c, s in saldos.items():
+        with cc[ix%3]:
+            # Usamos st.info para que tenga cajita de color por defecto
+            if s >= 0: st.success(f"**{c}**\n\nS/ {s:.2f}")
+            else: st.error(f"**{c}**\n\nS/ {s:.2f}")
+        ix += 1
+
+st.divider()
+
+# 3. METAS
+with st.container():
+    st.subheader("🚦 Metas")
+    gastos_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum() if not df_f.empty else {}
+    cp = st.columns(2)
+    ip = 0
+    for cat, tope in presupuestos_dict.items():
+        real = gastos_cat.get(cat, 0)
+        pct = (real/tope) if tope>0 else 0
+        with cp[ip%2]:
+            st.write(f"**{cat}**")
+            st.progress(min(pct, 1.0))
+            st.caption(f"{real:.0f} / {tope}")
+        ip += 1
+
+st.divider()
+
+# 4. REGISTRO
+with st.container():
+    st.subheader("📝 Nuevo")
+    op = st.radio("Acción", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True)
+    with st.form("op_form", clear_on_submit=True):
+        fc1, fc2 = st.columns(2)
+        u = fc1.selectbox("Usuario", ["Rodrigo", "Krys"])
+        if op == "Transferencia 🔄":
+            c_origen = fc2.selectbox("Desde", lista_cuentas)
+            c_dest = st.selectbox("Hacia", lista_cuentas)
+            cat = "Transferencia"
+        else:
+            cta = fc2.selectbox("Cuenta", lista_cuentas)
+            if "Gasto" in op: cat = st.selectbox("Categoría", list(presupuestos_dict.keys())+["Otros"])
+            else: cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo", "Otros"])
+        monto = st.number_input("Monto", min_value=0.01, format="%.2f")
+        desc = st.text_input("Detalle")
         
-        if tipo_op == "Transferencia 🔄":
-            if cta_origen == cta_destino:
-                st.error("Cuentas iguales")
-            else:
-                r1 = [fecha, hora, user, cta_origen, "Gasto", "Transferencia/Salida", monto, f"A {cta_destino}: {desc}"]
-                r2 = [fecha, hora, user, cta_destino, "Ingreso", "Transferencia/Entrada", monto, f"De {cta_origen}: {desc}"]
-                ws_registro.append_row(r1)
-                ws_registro.append_row(r2)
-                st.success("Hecho")
-                st.rerun()
-        else:
-            tipo_real = "Gasto" if "Gasto" in tipo_op else "Ingreso"
-            row = [fecha, hora, user, cta, tipo_real, cat, monto, desc]
-            ws_registro.append_row(row)
-            st.success("Hecho")
-            st.rerun()
+        if st.form_submit_button("Guardar"):
+            now_str = datetime.now().strftime("%Y-%m-%d")
+            time_str = datetime.now().strftime("%H:%M:%S")
+            try:
+                if op == "Transferencia 🔄":
+                    if c_origen == c_dest: st.error("Cuentas iguales")
+                    else:
+                        intento_seguro(lambda: ws_registro.append_row([now_str, time_str, u, c_origen, "Gasto", "Transferencia/Salida", monto, f"-> {c_dest}: {desc}"]))
+                        intento_seguro(lambda: ws_registro.append_row([now_str, time_str, u, c_dest, "Ingreso", "Transferencia/Entrada", monto, f"<- {c_origen}: {desc}"]))
+                        limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
+                else:
+                    tipo = "Gasto" if "Gasto" in op else "Ingreso"
+                    intento_seguro(lambda: ws_registro.append_row([now_str, time_str, u, cta, tipo, cat, monto, desc]))
+                    limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"Error: {e}")
 
-# --- BLOQUE 5: ELIMINACIÓN ---
-with st.expander("🗑️ Eliminar Registros"):
+# 5. BORRAR
+with st.expander("🗑️"):
     if not df.empty:
-        st.dataframe(df.sort_values(by="Fecha", ascending=False).head(5), use_container_width=True)
-        if st.button("BORRAR ÚLTIMO MOVIMIENTO"):
-            total_rows = len(ws_registro.get_all_values())
-            if total_rows > 1:
-                ws_registro.delete_rows(total_rows)
-                st.success("Borrado. Actualizando...")
-                st.rerun()
-            else:
-                st.warning("Nada que borrar")
-    else:
-        st.info("No hay registros para borrar.")
+        if st.button("Borrar Último"):
+            try:
+                intento_seguro(lambda: ws_registro.delete_rows(len(ws_registro.get_all_values())))
+                limpiar_cache(); st.success("Borrado"); time.sleep(1); st.rerun()
+            except: pass
