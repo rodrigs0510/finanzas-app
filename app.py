@@ -9,9 +9,8 @@ import base64
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Finanzas R&K", layout="centered", page_icon="💰")
 
-# --- FUNCIÓN DE FONDO (ESTO ES LO NUEVO) ---
+# --- FUNCIÓN DE FONDO ---
 def poner_fondo(imagen_local):
-    """Lee una imagen local y la pone de fondo usando CSS y Base64"""
     with open(imagen_local, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode()
     
@@ -23,7 +22,6 @@ def poner_fondo(imagen_local):
         background-position: center;
         background-attachment: fixed;
     }}
-    /* Hacemos los contenedores semi-transparentes para que se lea el texto */
     div[data-testid="stExpander"], div[data-testid="stContainer"] {{
         background-color: rgba(255, 255, 255, 0.85);
         border-radius: 10px;
@@ -33,13 +31,13 @@ def poner_fondo(imagen_local):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# --- ACTIVAR EL FONDO ---
+# Intentar cargar fondo
 try:
     poner_fondo("fondo.jpg")
-except FileNotFoundError:
-    st.warning("⚠️ No encontré la imagen 'fondo.jpg'. Asegúrate de ponerla en la carpeta.")
+except:
+    pass # Si no hay fondo, no pasa nada
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- CONEXIÓN ---
 @st.cache_resource
 def conectar_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -52,7 +50,7 @@ def conectar_google_sheets():
     sheet = client.open("Finanzas_RodrigoKrys")
     return sheet
 
-# --- REINTENTOS SEGUROS (Retry Logic) ---
+# Retry Logic
 def intento_seguro(funcion_gspread):
     max_retries = 3
     for i in range(max_retries):
@@ -69,11 +67,11 @@ try:
     ws_registro = sh.worksheet("Registro")
     ws_cuentas = sh.worksheet("Cuentas")
     ws_presupuestos = sh.worksheet("Presupuestos")
-except Exception:
+except:
     st.error("Error conectando. Recarga en 1 min.")
     st.stop()
 
-# --- FUNCIONES DE DATOS ---
+# --- FUNCIONES DATOS ---
 @st.cache_data(ttl=60)
 def obtener_datos():
     data = intento_seguro(lambda: ws_registro.get_all_records())
@@ -96,19 +94,22 @@ def obtener_presupuestos():
 
 def limpiar_cache(): st.cache_data.clear()
 
-# --- INTERFAZ ---
+# --- INTERFAZ (SIDEBAR CORREGIDO) ---
 with st.sidebar:
     st.header("⚙️ Config")
     with st.expander("➕ Cuentas"):
         nueva = st.text_input("Nueva Cuenta")
-        if st.button("Crear") and nueva:
+        # AQUÍ ESTABA EL ERROR: Agregamos key único
+        if st.button("Crear", key="btn_crear_cuenta") and nueva:
             ws_cuentas.append_row([nueva])
             limpiar_cache()
             st.success("OK"); time.sleep(1); st.rerun()
+            
     with st.expander("🎯 Presupuestos"):
         n_cat = st.text_input("Categoría")
         n_tope = st.number_input("Tope", min_value=0)
-        if st.button("Crear") and n_cat:
+        # AQUÍ ESTABA EL ERROR: Agregamos key único
+        if st.button("Crear", key="btn_crear_meta") and n_cat:
             ws_presupuestos.append_row([n_cat, n_tope])
             limpiar_cache()
             st.success("OK"); time.sleep(1); st.rerun()
@@ -122,7 +123,7 @@ try:
 except:
     st.warning("⚠️ Tráfico alto. Espera 5s..."); time.sleep(5); st.rerun()
 
-# CONTENEDOR FILTROS (CON FONDO BLANCO SEMI-TRANSPARENTE)
+# FILTROS
 with st.container():
     c1, c2 = st.columns(2)
     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -157,7 +158,6 @@ with st.container():
     ix = 0
     for c, s in saldos.items():
         with cc[ix%3]:
-            # Usamos st.info para que tenga cajita de color por defecto
             if s >= 0: st.success(f"**{c}**\n\nS/ {s:.2f}")
             else: st.error(f"**{c}**\n\nS/ {s:.2f}")
         ix += 1
@@ -218,7 +218,7 @@ with st.container():
 # 5. BORRAR
 with st.expander("🗑️"):
     if not df.empty:
-        if st.button("Borrar Último"):
+        if st.button("Borrar Último", key="btn_borrar"): # También le puse key a este por si acaso
             try:
                 intento_seguro(lambda: ws_registro.delete_rows(len(ws_registro.get_all_values())))
                 limpiar_cache(); st.success("Borrado"); time.sleep(1); st.rerun()
