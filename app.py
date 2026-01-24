@@ -7,77 +7,93 @@ import time
 import base64
 import pytz
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN INICIAL ---
 st.set_page_config(page_title="CAPIGASTOS", layout="wide", page_icon="🐹")
 
-# --- 2. ESTILOS CSS (CORRECCIÓN DE CONTRASTE TOTAL) ---
-def poner_fondo(imagen_local):
+# --- 2. MOTOR DE ESTILOS (CSS AVANZADO PARA LEGIBILIDAD) ---
+def cargar_estilos(imagen_local):
     try:
-        with open(imagen_local, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
+        with open(imagen_local, "rb") as f:
+            b64_img = base64.b64encode(f.read()).decode()
         
-        css = f"""
+        st.markdown(f"""
         <style>
-        /* FONDO */
+        /* 1. FONDO DE PANTALLA FIJO */
         .stApp {{
-            background-image: url(data:image/jpg;base64,{encoded_string});
+            background-image: url(data:image/jpg;base64,{b64_img});
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
         }}
-        
-        /* TÍTULOS PRINCIPALES (EN EL FONDO AZUL) -> BLANCOS */
-        h1, .titulo-principal {{
-            color: #FFFFFF !important;
-            text-shadow: 4px 4px 8px #000000;
-            font-weight: 900 !important;
-            font-size: 3.5rem !important;
-        }}
-        
-        /* SUBTÍTULOS DENTRO DE CAJAS -> NEGROS */
-        h2, h3, h4 {{
-            color: #1E1E1E !important;
-            font-weight: 700;
-        }}
 
-        /* CONTENEDORES (CAJAS BLANCAS) */
-        div[data-testid="stExpander"], div[data-testid="stContainer"], form {{
-            background-color: rgba(255, 255, 255, 0.95); /* Blanco casi opaco */
-            border-radius: 15px;
+        /* 2. CONTENEDORES (TARJETAS BLANCAS) */
+        /* Esto crea el fondo blanco detrás de CADA bloque para que se lea */
+        div[data-testid="stVerticalBlock"] > div > div {{
+            background-color: rgba(255, 255, 255, 0.96); /* Blanco 96% opaco */
+            border-radius: 12px;
             padding: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.15);
+            margin-bottom: 10px;
+        }}
+        
+        /* Excepción: El contenedor principal transparente para que se vea el fondo general */
+        .stApp > header, .stApp > div:first-child {{
+            background-color: transparent;
         }}
 
-        /* TEXTOS GENERALES, ETIQUETAS Y INPUTS -> NEGRO */
-        p, div, label, span, div[data-testid="stMarkdownContainer"] p {{
+        /* 3. TIPOGRAFÍA Y TÍTULOS */
+        h1 {{
+            color: #FFFFFF !important; /* Título principal Blanco */
+            text-shadow: 0px 4px 8px rgba(0,0,0,0.8); /* Sombra negra fuerte */
+            font-size: 3.5rem !important;
+            font-weight: 900 !important;
+            padding-bottom: 20px;
+        }}
+        
+        h2, h3, h4, p, li, .stMarkdown {{
+            color: #222222 !important; /* Texto negro intenso */
+        }}
+
+        /* 4. ARREGLO DE LOS INPUTS Y DROPDOWNS (Menús negros) */
+        /* Forzamos fondo blanco y letra negra en todos los inputs */
+        input, select, textarea, div[data-baseweb="select"] > div {{
+            background-color: #FFFFFF !important;
+            color: #000000 !important;
+            border-color: #CCCCCC !important;
+        }}
+        div[data-baseweb="select"] span {{
             color: #000000 !important;
         }}
-        
-        /* MÉTRICAS (NÚMEROS GRANDES) */
+        /* El menú desplegable en sí */
+        ul[data-baseweb="menu"] {{
+            background-color: #FFFFFF !important;
+        }}
+        li[data-baseweb="menu-item"] {{
+            color: #000000 !important;
+        }}
+
+        /* 5. MÉTRICAS (Números grandes) */
         div[data-testid="stMetricValue"] {{
             color: #000000 !important;
-            font-weight: bold;
+            font-size: 2rem !important;
         }}
         div[data-testid="stMetricLabel"] {{
-            color: #444444 !important;
+            color: #555555 !important;
+            font-weight: bold;
         }}
-
-        /* BOTONES */
-        button {{
-            font-weight: bold !important;
-            border-radius: 10px !important;
-        }}
+        
+        /* 6. OCULTAR BARRA SUPERIOR ROJA DE STREAMLIT */
+        header {{visibility: hidden;}}
+        
         </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     except: pass
 
-poner_fondo("fondo.jpg")
+cargar_estilos("fondo.jpg")
 
 # --- 3. CONEXIÓN ---
 @st.cache_resource
-def conectar_google_sheets():
+def conectar_google():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     if "gcp_service_account" in st.secrets:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
@@ -91,197 +107,195 @@ def intento_seguro(func):
         except: time.sleep(1)
 
 try:
-    sh = conectar_google_sheets()
-    ws_registro = sh.worksheet("Registro")
-    ws_cuentas = sh.worksheet("Cuentas")
-    ws_presupuestos = sh.worksheet("Presupuestos")
+    sh = conectar_google()
+    ws_reg = sh.worksheet("Registro")
+    ws_cta = sh.worksheet("Cuentas")
+    ws_pre = sh.worksheet("Presupuestos")
 except:
-    st.error("⚠️ Error de conexión."); st.stop()
+    st.error("⚠️ Error de conexión. Recarga la página."); st.stop()
 
-# --- 4. GESTIÓN DE DATOS ---
+# --- 4. DATOS ---
 def limpiar_cache(): st.cache_data.clear()
 
 @st.cache_data(ttl=60)
-def obtener_datos():
-    data = intento_seguro(lambda: ws_registro.get_all_records())
-    if not data: return pd.DataFrame(columns=['ID','Fecha','Hora','Usuario','Cuenta','Tipo','Categoria','Monto','Descripcion'])
-    df = pd.DataFrame(data)
+def get_data():
+    d = intento_seguro(lambda: ws_reg.get_all_records())
+    if not d: return pd.DataFrame(columns=['ID','Fecha','Hora','Usuario','Cuenta','Tipo','Categoria','Monto','Descripcion'])
+    df = pd.DataFrame(d)
     df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
     df['Fecha_dt'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
-    df['ID_Fila'] = df.index + 2
+    df['ID'] = df.index + 2
     return df
 
 @st.cache_data(ttl=300)
-def obtener_cuentas():
-    return intento_seguro(lambda: ws_cuentas.col_values(1))[1:] or ["Efectivo"]
+def get_cuentas():
+    return intento_seguro(lambda: ws_cta.col_values(1))[1:] or ["Efectivo"]
 
 @st.cache_data(ttl=300)
-def obtener_presupuestos():
-    return intento_seguro(lambda: ws_presupuestos.get_all_records())
+def get_metas():
+    return intento_seguro(lambda: ws_pre.get_all_records())
 
-# --- 5. CABECERA EJECUTIVA (TODO EN UNA LÍNEA) ---
-zona_pe = pytz.timezone('America/Lima')
-now_pe = datetime.now(zona_pe)
-df = obtener_datos()
-ahorro_vida = df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum()
+# --- 5. LOGICA GLOBAL ---
+pe_zone = pytz.timezone('America/Lima')
+now = datetime.now(pe_zone)
+df = get_data()
 
-# Layout Superior: Logo/Título - Ahorro Total - Filtro Fecha
-c_head1, c_head2, c_head3 = st.columns([3, 2, 2])
+# Ahorro Histórico (Suma total de todos los tiempos)
+ahorro_total = df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum()
 
-with c_head1:
-    st.markdown('<h1 class="titulo-principal">🐹 CAPIGASTOS</h1>', unsafe_allow_html=True)
+# --- 6. INTERFAZ: ENCABEZADO ---
+# Fila superior: Título Grande y KPI Principal
+c_title, c_kpi, c_filtros = st.columns([3, 2, 2])
 
-with c_head2:
+with c_title:
+    st.markdown("<h1>🐹 CAPIGASTOS</h1>", unsafe_allow_html=True)
+
+with c_kpi:
+    # Usamos container para que tenga fondo blanco
     with st.container():
-        st.metric("💰 Ahorro Histórico Total", f"S/ {ahorro_vida:,.2f}")
+        st.metric("💰 Ahorro Total (Vida)", f"S/ {ahorro_total:,.2f}")
 
-with c_head3:
+with c_filtros:
     with st.container():
-        col_m, col_a = st.columns(2)
+        c_m, c_a = st.columns(2)
         meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-        mes_nom = col_m.selectbox("Mes", meses, index=now_pe.month-1, label_visibility="collapsed")
-        anio = col_a.number_input("Año", value=now_pe.year, min_value=2024, label_visibility="collapsed")
-        mes_idx = meses.index(mes_nom) + 1
+        sel_mes = c_m.selectbox("Mes", meses, index=now.month-1)
+        sel_anio = c_a.number_input("Año", value=now.year, min_value=2024)
+        mes_idx = meses.index(sel_mes) + 1
 
-# Filtrado Global
+# Filtro de Dataframe
 if not df.empty and 'Fecha_dt' in df.columns:
-    df_f = df[(df['Fecha_dt'].dt.month == mes_idx) & (df['Fecha_dt'].dt.year == anio)]
+    df_f = df[(df['Fecha_dt'].dt.month == mes_idx) & (df['Fecha_dt'].dt.year == sel_anio)]
 else: df_f = df
 
-st.markdown("---")
+# --- 7. CUERPO PRINCIPAL (LAYOUT 1/3 - 2/3) ---
+col_L, col_R = st.columns([1, 2.2], gap="medium")
 
-# --- 6. CUERPO PRINCIPAL (2 COLUMNAS: OPERACIÓN vs VISUALIZACIÓN) ---
-# Columna Izquierda (35%): Registro y Gestión
-# Columna Derecha (65%): Dashboard
-col_op, col_dash = st.columns([1.2, 2.5], gap="medium")
-
-# === COLUMNA IZQUIERDA: OPERACIONES ===
-with col_op:
-    st.subheader("📝 Panel de Control")
+# === IZQUIERDA: PANEL DE ACCIÓN ===
+with col_L:
+    st.subheader("📝 Registrar")
     
-    # 1. REGISTRO
+    # Formulario de Registro
     with st.container():
-        st.write("##### Nuevo Movimiento")
-        op = st.radio("Tipo", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True, label_visibility="collapsed")
+        op = st.radio("Operación", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True, label_visibility="collapsed")
         
-        with st.form("main_form", clear_on_submit=True):
-            lista_ctas = obtener_cuentas()
-            metas_data = obtener_presupuestos()
-            cats = [m['Categoria'] for m in metas_data] + ["Otros", "Sueldo", "Regalo"]
-            
-            u = st.selectbox("Usuario", ["Rodrigo", "Krys"])
+        with st.form("frm_main", clear_on_submit=True):
+            us = st.selectbox("Usuario", ["Rodrigo", "Krys"])
+            ctas = get_cuentas()
+            metas = get_metas()
+            cats = [m['Categoria'] for m in metas] + ["Otros", "Sueldo", "Regalo"]
             
             if op == "Transferencia 🔄":
-                c1, c2 = st.columns(2)
-                ori = c1.selectbox("Desde", lista_ctas)
-                des = c2.selectbox("Hacia", lista_ctas)
+                c_ori = st.selectbox("Desde", ctas)
+                c_des = st.selectbox("Hacia", ctas)
                 cat = "Transferencia"
             else:
-                cta = st.selectbox("Cuenta", lista_ctas)
-                cat = st.selectbox("Categoría", cats)
+                cta = st.selectbox("Cuenta", ctas)
+                if "Gasto" in op: cat = st.selectbox("Categoría", cats)
+                else: cat = st.selectbox("Fuente", ["Sueldo", "Negocio", "Regalo", "Otros"])
             
             monto = st.number_input("Monto S/", min_value=0.01, format="%.2f")
-            desc = st.text_input("Nota", placeholder="Detalle...")
+            desc = st.text_input("Detalle")
             
             if st.form_submit_button("💾 Guardar", use_container_width=True):
-                f_date = datetime.now(zona_pe).strftime("%Y-%m-%d")
-                f_time = datetime.now(zona_pe).strftime("%H:%M:%S")
+                f_d = datetime.now(pe_zone).strftime("%Y-%m-%d")
+                f_t = datetime.now(pe_zone).strftime("%H:%M:%S")
                 
                 if op == "Transferencia 🔄":
-                    if ori == des: st.error("¡Mismas cuentas!")
+                    if c_ori == c_des: st.error("Misma cuenta")
                     else:
-                        ws_registro.append_row([f_date, f_time, u, ori, "Gasto", "Transferencia/Salida", monto, f"-> {des}: {desc}"])
-                        ws_registro.append_row([f_date, f_time, u, des, "Ingreso", "Transferencia/Entrada", monto, f"<- {ori}: {desc}"])
-                        limpiar_cache(); st.success("Transferido"); time.sleep(1); st.rerun()
+                        ws_reg.append_row([f_d, f_t, us, c_ori, "Gasto", "Transferencia/Salida", monto, f"-> {c_des}: {desc}"])
+                        ws_reg.append_row([f_d, f_t, us, c_des, "Ingreso", "Transferencia/Entrada", monto, f"<- {c_ori}: {desc}"])
+                        limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
                 else:
                     tipo = "Gasto" if "Gasto" in op else "Ingreso"
-                    ws_registro.append_row([f_date, f_time, u, cta, tipo, cat, monto, desc])
-                    limpiar_cache(); st.success("Registrado"); time.sleep(1); st.rerun()
+                    ws_reg.append_row([f_d, f_t, us, cta, tipo, cat, monto, desc])
+                    limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
 
-    st.write("") # Espacio
-
-    # 2. GESTIÓN (EXPANDIBLE)
-    with st.expander("🛠️ Configurar Cuentas y Metas"):
-        tabs = st.tabs(["Cuentas", "Metas", "Ajustes"])
-        
-        with tabs[0]: # Cuentas
-            n_cta = st.text_input("Nueva Cuenta")
-            if st.button("➕ Crear Cta") and n_cta:
-                ws_cuentas.append_row([n_cta]); limpiar_cache(); st.rerun()
-            d_cta = st.selectbox("Borrar", ["-"]+lista_ctas)
-            if st.button("🗑️ Eliminar Cta") and d_cta != "-":
-                cell = ws_cuentas.find(d_cta); ws_cuentas.delete_rows(cell.row); limpiar_cache(); st.rerun()
-                
-        with tabs[1]: # Metas
-            n_met = st.text_input("Meta")
-            n_top = st.number_input("Tope", 0)
-            if st.button("➕ Crear Meta") and n_met:
-                ws_presupuestos.append_row([n_met, n_top]); limpiar_cache(); st.rerun()
-            
-        with tabs[2]: # Ajustes
-            if st.button("🧹 Refrescar Todo"): limpiar_cache(); st.rerun()
-
-# === COLUMNA DERECHA: DASHBOARD VISUAL ===
-with col_dash:
-    # 1. TARJETAS RESUMEN DEL MES
-    m_ing = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
-    m_gas = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
-    m_bal = m_ing - m_gas
+    st.write("")
     
+    # Gestión (Expandible para no ocupar espacio)
+    with st.expander("🛠️ Administrar Cuentas y Metas"):
+        pestanas = st.tabs(["Cuentas", "Metas"])
+        with pestanas[0]:
+            n_cta = st.text_input("Nueva Cuenta")
+            if st.button("Crear Cta") and n_cta:
+                ws_cta.append_row([n_cta]); limpiar_cache(); st.rerun()
+            d_cta = st.selectbox("Eliminar", ["-"]+ctas)
+            if st.button("Borrar Cta") and d_cta != "-":
+                cell = ws_cta.find(d_cta); ws_cta.delete_rows(cell.row); limpiar_cache(); st.rerun()
+        with pestanas[1]:
+            n_met = st.text_input("Nueva Meta")
+            n_top = st.number_input("Tope", 0)
+            if st.button("Crear Meta") and n_met:
+                ws_pre.append_row([n_met, n_top]); limpiar_cache(); st.rerun()
+            d_met = st.selectbox("Eliminar Meta", ["-"]+[m['Categoria'] for m in metas])
+            if st.button("Borrar Meta") and d_met != "-":
+                cell = ws_pre.find(d_met); ws_pre.delete_rows(cell.row); limpiar_cache(); st.rerun()
+
+
+# === DERECHA: DASHBOARD VISUAL ===
+with col_R:
+    # 1. Resumen Mes
+    ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
+    gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
+    bal_m = ing_m - gas_m
+    
+    st.subheader(f"📊 Resumen {sel_mes}")
     with st.container():
-        st.subheader(f"📊 Reporte de {mes_nom}")
         k1, k2, k3 = st.columns(3)
-        k1.metric("Ingresos", f"S/ {m_ing:,.2f}")
-        k2.metric("Gastos", f"S/ {m_gas:,.2f}", delta="-Gasto", delta_color="inverse")
-        k3.metric("Balance", f"S/ {m_bal:,.2f}", delta="Ahorro")
+        k1.metric("Ingresos", f"S/ {ing_m:,.2f}")
+        k2.metric("Gastos", f"S/ {gas_m:,.2f}", delta="-Gasto", delta_color="inverse")
+        k3.metric("Balance Mes", f"S/ {bal_m:,.2f}", delta="Neto")
 
-    st.write("") 
-
-    # 2. ESTADO DE CUENTAS (GRID)
-    st.subheader("💳 Mis Cuentas (Saldos Reales)")
+    # 2. Cuentas (Grid)
+    st.subheader("💳 Estado de Cuentas")
     cols_c = st.columns(3)
-    for i, c in enumerate(lista_ctas):
+    for i, c in enumerate(ctas):
         ing = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
         gas = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
-        saldo = ing - gas
+        sal = ing - gas
         
         with cols_c[i % 3]:
             with st.container():
                 st.write(f"**{c}**")
-                st.metric("Saldo", f"S/ {saldo:,.2f}", label_visibility="collapsed")
-                if ing > 0: st.progress(min(max(saldo/ing, 0.0), 1.0))
+                st.metric("Saldo", f"S/ {sal:,.2f}", label_visibility="collapsed")
+                if ing > 0: st.progress(min(max(sal/ing, 0.0), 1.0))
     
-    st.write("")
-
-    # 3. METAS DE PRESUPUESTO
-    st.subheader("🚦 Semáforo de Metas")
+    # 3. Metas (2 Columnas)
+    st.subheader("🚦 Presupuestos")
     g_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
     
-    c_p1, c_p2 = st.columns(2)
-    for i, m in enumerate(metas_data):
+    cp1, cp2 = st.columns(2)
+    for i, m in enumerate(metas):
         cat = m['Categoria']
         tope = m['Tope_Mensual']
         real = g_cat.get(cat, 0)
         pct = (real/tope) if tope > 0 else 0
         
-        with c_p1 if i%2==0 else c_p2:
+        with cp1 if i%2==0 else cp2:
             with st.container():
-                c_t, c_v = st.columns([2,1])
-                c_t.write(f"**{cat}**")
-                c_v.caption(f"{real:.0f} / {tope}")
-                if pct > 1: st.progress(1.0); st.caption("❌ ¡EXCEDIDO!")
-                elif pct > 0.8: st.progress(pct); st.caption("⚠️ Cuidado")
+                c1, c2 = st.columns([2,1])
+                c1.write(f"**{cat}**")
+                c2.caption(f"{real:.0f} / {tope}")
+                if pct > 1: st.progress(1.0); st.error("Excedido")
+                elif pct > 0.8: st.progress(pct); st.warning("Alerta")
                 else: st.progress(pct)
 
-# --- 7. HISTORIAL (ABAJO DEL TODO) ---
-st.write("---")
-with st.expander("📂 Ver Historial Detallado y Editar"):
+# --- 8. HISTORIAL (ABAJO) ---
+st.markdown("---")
+with st.expander("📂 Historial Detallado y Borrado"):
     if not df.empty:
-        df_ver = df[['ID_Fila','Fecha','Usuario','Cuenta','Tipo','Categoria','Monto','Descripcion']].copy()
-        df_ver['Fecha'] = pd.to_datetime(df_ver['Fecha']).dt.strftime('%d/%m/%Y')
-        st.dataframe(df_ver.sort_values('ID_Fila', ascending=False), use_container_width=True)
+        df_show = df[['ID','Fecha','Usuario','Cuenta','Tipo','Categoria','Monto','Descripcion']].copy()
+        df_show['Fecha'] = pd.to_datetime(df_show['Fecha']).dt.strftime('%d/%m/%Y')
+        st.dataframe(df_show.sort_values('ID', ascending=False), use_container_width=True)
         
-        cl1, cl2 = st.columns([4, 1])
-        del_id = cl1.number_input("ID a Borrar", min_value=0)
-        if cl2.button("❌ Borrar ID") and del_id > 0:
-            ws_registro.delete_rows(int(del_id)); limpiar_cache(); st.rerun()
+        cx1, cx2 = st.columns([4, 1])
+        del_id = cx1.number_input("ID a Borrar", min_value=0)
+        if cx2.button("❌ Borrar") and del_id > 0:
+            try:
+                ws_reg.delete_rows(int(del_id))
+                limpiar_cache()
+                st.success("Eliminado")
+                time.sleep(1); st.rerun()
+            except: st.error("ID no válido")
