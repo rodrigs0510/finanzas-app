@@ -10,7 +10,7 @@ import pytz
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="wide", page_icon="🐹")
 
-# --- 2. CSS: ESTILO "COMIC / STICKER" (VISIBILIDAD EXTREMA) ---
+# --- 2. CSS: DISEÑO DE TARJETAS LIMPIAS (CONTRASTE REAL) ---
 def cargar_estilos(imagen_local):
     try:
         with open(imagen_local, "rb") as f:
@@ -18,7 +18,7 @@ def cargar_estilos(imagen_local):
         
         st.markdown(f"""
         <style>
-        /* FONDO */
+        /* 1. FONDO DE CARPINCHOS */
         .stApp {{
             background-image: url(data:image/jpg;base64,{b64_img});
             background-size: cover;
@@ -26,74 +26,84 @@ def cargar_estilos(imagen_local):
             background-attachment: fixed;
         }}
 
-        /* --- LAS TARJETAS (CAJAS SÓLIDAS) --- */
-        /* Esto afecta a todos los bloques principales */
+        /* 2. CLASE PARA LAS "TARJETAS BLANCAS" */
+        /* Forzamos que los contenedores sean blancos y opacos */
         div[data-testid="stVerticalBlock"] > div > div[data-testid="stContainer"], 
-        div[data-testid="stVerticalBlock"] > div > div[data-testid="stForm"],
+        div[data-testid="stForm"],
         div[data-testid="stExpander"] {{
-            background-color: #FFFFFF !important; /* BLANCO PURO */
-            border: 2px solid #000000 !important; /* BORDE NEGRO */
-            border-radius: 15px !important;
-            padding: 20px !important;
-            box-shadow: 6px 6px 0px rgba(0,0,0,0.8) !important; /* SOMBRA DURA TIPO COMIC */
+            background-color: #FFFFFF !important;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); /* Sombra suave */
+            border: 1px solid #E0E0E0;
+            margin-bottom: 20px;
         }}
 
-        /* --- TIPOGRAFÍA (NEGRO PURO) --- */
+        /* 3. TIPOGRAFÍA (NEGRO PURO) */
         h1, h2, h3, h4, h5, p, span, div, label, li {{
-            color: #000000 !important;
+            color: #212121 !important;
             font-family: sans-serif;
         }}
-        h1 {{
-            text-shadow: 4px 4px 0px #000000;
-            color: #FFFFFF !important; /* El título principal sí en blanco */
-            font-weight: 900 !important;
-            font-size: 3.5rem !important;
-            -webkit-text-stroke: 1.5px black; /* Borde negro a las letras */
-        }}
         
-        /* --- INPUTS (CAJAS DE TEXTO) --- */
+        /* 4. INPUTS Y SELECTORES (LIMPIOS Y LEGIBLES) */
+        /* Fondo gris muy claro, letra negra */
         .stTextInput input, .stNumberInput input, .stSelectbox div, .stDateInput input {{
-            background-color: #FFFFFF !important;
+            background-color: #F8F9FA !important; 
             color: #000000 !important;
-            border: 2px solid #000000 !important; /* Borde negro */
+            border: 1px solid #CCCCCC !important;
             border-radius: 8px !important;
-            font-weight: bold !important;
         }}
         
-        /* --- BOTONES --- */
-        .stButton > button {{
-            background-color: #FF9F9F !important; /* Color salmón para resaltar (como la imagen) */
-            color: #000000 !important;
-            border: 2px solid #000000 !important;
-            border-radius: 10px !important;
-            font-weight: bold !important;
-            box-shadow: 3px 3px 0px #000000 !important;
-        }}
-        .stButton > button:active {{
-            transform: translateY(2px);
-            box-shadow: 1px 1px 0px #000000 !important;
-        }}
-        
-        /* Botones de borrar (pequeños) */
-        button[kind="secondary"] {{
+        /* Arreglo para menús desplegables */
+        ul[data-baseweb="menu"] {{
             background-color: #FFFFFF !important;
         }}
-
-        /* --- MÉTRICAS --- */
-        div[data-testid="stMetric"] {{
-            background-color: #F0F0F0 !important;
-            border: 2px solid #000000 !important;
-            border-radius: 10px;
-            padding: 10px;
-            box-shadow: 3px 3px 0px rgba(0,0,0,0.2);
-            text-align: center;
-        }}
-        div[data-testid="stMetricValue"] {{
-            font-size: 1.8rem !important;
-            font-weight: 800 !important;
+        div[data-baseweb="select"] span {{
+            color: #000000 !important;
         }}
 
-        /* OCULTAR HEADER ROJO */
+        /* 5. HEADER PERSONALIZADO (Caja blanca para el título) */
+        .header-box {{
+            background-color: #FFFFFF;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: 1px solid #E0E0E0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }}
+        
+        .titulo-grande {{
+            font-size: 3rem;
+            font-weight: 900;
+            margin: 0;
+            color: #FF8C00 !important; /* Un naranja Capibara */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }}
+
+        /* 6. BOTONES */
+        .stButton > button {{
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            background-color: #F0F2F6;
+            color: #000000 !important;
+            border: 1px solid #D1D5DB !important;
+        }}
+        .stButton > button:hover {{
+            border-color: #FF8C00 !important;
+            color: #FF8C00 !important;
+        }}
+        
+        /* Botón primario (Guardar) */
+        button[kind="primary"] {{
+            background-color: #FF8C00 !important;
+            color: white !important;
+            border: none !important;
+        }}
+
+        /* Ocultar header rojo */
         header {{visibility: hidden;}}
         </style>
         """, unsafe_allow_html=True)
@@ -148,20 +158,20 @@ def get_metas():
 @st.dialog("➕ Nueva Cuenta")
 def pop_add_cta():
     n = st.text_input("Nombre")
-    if st.button("Guardar"):
+    if st.button("Guardar", type="primary"):
         if n: ws_cta.append_row([n]); limpiar(); st.rerun()
 
 @st.dialog("➕ Nueva Meta")
 def pop_add_meta():
     n = st.text_input("Categoría")
     t = st.number_input("Tope", min_value=0)
-    if st.button("Guardar"):
+    if st.button("Guardar", type="primary"):
         if n: ws_pre.append_row([n, t]); limpiar(); st.rerun()
 
 @st.dialog("🗑️ Confirmar")
 def pop_delete(tipo, id_o_nombre):
     st.warning(f"¿Borrar **{id_o_nombre}**?")
-    if st.button("Sí, BORRAR"):
+    if st.button("Sí, BORRAR", type="primary"):
         if tipo == "reg": ws_reg.delete_rows(int(id_o_nombre))
         elif tipo == "cta": 
             c = ws_cta.find(id_o_nombre); ws_cta.delete_rows(c.row)
@@ -174,24 +184,31 @@ pe_zone = pytz.timezone('America/Lima')
 now = datetime.now(pe_zone)
 df = get_data()
 
-# --- 7. HEADER (CAJA SÓLIDA SUPERIOR) ---
-# Título flotante (blanco con borde negro)
-st.markdown("<h1>🐹 CAPIGASTOS</h1>", unsafe_allow_html=True)
+# --- 7. HEADER (CAJA BLANCA COMPLETA) ---
+# Usamos HTML para crear una caja blanca unificada para el título
+ahorro_vida = df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum()
 
-# Filtros y KPI en una caja sólida blanca
+st.markdown(f"""
+<div class="header-box">
+    <div>
+        <h1 class="titulo-grande">🐹 CAPIGASTOS</h1>
+        <p style="margin:0; color:#666;">Control de Finanzas R&K</p>
+    </div>
+    <div style="text-align:right;">
+        <h3 style="margin:0; color:#212121;">💰 Ahorro Total</h3>
+        <h2 style="margin:0; color:#2E7D32;">S/ {ahorro_vida:,.2f}</h2>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# FILTROS (En su propia caja blanca abajo del título)
 with st.container():
-    c1, c2, c3 = st.columns([1.5, 1, 1])
-    
-    ahorro_vida = df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum()
-    with c1:
-        st.metric("💰 Ahorro Total (Vida)", f"S/ {ahorro_vida:,.2f}")
-        
+    c_f1, c_f2 = st.columns(2)
     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    with c2:
-        sel_mes = st.selectbox("Mes", meses, index=now.month-1)
-    with c3:
-        sel_anio = st.number_input("Año", value=now.year)
-    
+    with c_f1:
+        sel_mes = st.selectbox("📅 Mes de Visualización", meses, index=now.month-1)
+    with c_f2:
+        sel_anio = st.number_input("📅 Año", value=now.year)
     mes_idx = meses.index(sel_mes) + 1
 
 # Filtrado
@@ -199,25 +216,25 @@ if not df.empty and 'Fecha_dt' in df.columns:
     df_f = df[(df['Fecha_dt'].dt.month == mes_idx) & (df['Fecha_dt'].dt.year == sel_anio)]
 else: df_f = df
 
-st.write("") # Espacio
+# --- 8. CUERPO (COLUMNAS) ---
+col_izq, col_der = st.columns([1, 2], gap="medium")
 
-# --- 8. CUERPO PRINCIPAL ---
-col_L, col_R = st.columns([1.2, 2.5], gap="large")
-
-# === IZQUIERDA: REGISTRO (CAJA BLANCA CON BORDE NEGRO) ===
-with col_L:
-    with st.container(): # Contenedor
-        st.subheader("📝 Registrar Movimiento")
-        
-        # Formulario
-        op = st.radio("Acción", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True)
+# === IZQUIERDA: REGISTRO (TODA LA SECCIÓN EN UNA TARJETA BLANCA) ===
+with col_izq:
+    # AQUI ESTA LA CAJA BLANCA QUE PEDISTE PARA EL REGISTRO
+    with st.container():
+        st.subheader("📝 Nuevo Registro")
         st.divider()
         
+        # Todo esto está dentro del fondo blanco
+        op = st.radio("Acción", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True)
+        st.write("") # Espacio
+        
+        # El formulario
         with st.form("frm_main", clear_on_submit=True):
             ctas = get_cuentas()
             metas = get_metas()
             cats = [m['Categoria'] for m in metas] + ["Otros", "Sueldo", "Regalo"]
-            
             u = st.selectbox("Usuario", ["Rodrigo", "Krys"])
             
             if op == "Transferencia 🔄":
@@ -227,13 +244,14 @@ with col_L:
             else:
                 cta = st.selectbox("Cuenta", ctas)
                 if "Gasto" in op: cat = st.selectbox("Categoría", cats)
-                else: cat = st.selectbox("Fuente", ["Sueldo", "Otros"])
+                else: cat = st.selectbox("Fuente", ["Sueldo", "Negocio", "Regalo", "Otros"])
             
             monto = st.number_input("Monto S/", min_value=0.01, format="%.2f")
             desc = st.text_input("Nota")
             
             st.write("")
-            if st.form_submit_button("💾 GUARDAR OPERACIÓN", use_container_width=True):
+            # Botón primario (Color Naranja)
+            if st.form_submit_button("💾 GUARDAR", type="primary", use_container_width=True):
                 fd = datetime.now(pe_zone).strftime("%Y-%m-%d")
                 ft = datetime.now(pe_zone).strftime("%H:%M:%S")
                 if op == "Transferencia 🔄":
@@ -246,30 +264,29 @@ with col_L:
                     t = "Gasto" if "Gasto" in op else "Ingreso"
                     ws_reg.append_row([fd, ft, u, cta, t, cat, monto, desc])
                     limpiar(); st.success("OK"); time.sleep(1); st.rerun()
-
-    # Botones rápidos abajo
+                    
+    # Gestión Rápida (En otra tarjeta blanca pequeña)
     with st.container():
-        st.write("**Administrar:**")
-        bt1, bt2 = st.columns(2)
-        if bt1.button("➕ Cuenta", use_container_width=True): pop_add_cta()
-        if bt2.button("➕ Meta", use_container_width=True): pop_add_meta()
+        st.write("⚙️ **Gestión Rápida**")
+        b1, b2 = st.columns(2)
+        if b1.button("➕ Cuenta", use_container_width=True): pop_add_cta()
+        if b2.button("➕ Meta", use_container_width=True): pop_add_meta()
 
-# === DERECHA: DASHBOARD (CAJAS BLANCAS CON BORDE NEGRO) ===
-with col_R:
-    # 1. RESUMEN MES
+# === DERECHA: DASHBOARD (CADA SECCIÓN EN SU CAJA BLANCA) ===
+with col_der:
+    # 1. RESUMEN MES (CAJA BLANCA)
     with st.container():
-        st.subheader(f"📊 Reporte: {sel_mes}")
+        st.subheader(f"📊 Resumen: {sel_mes}")
         m_ing = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
         m_gas = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
         
         k1, k2, k3 = st.columns(3)
         k1.metric("Ingresos", f"S/ {m_ing:,.2f}")
         k2.metric("Gastos", f"S/ {m_gas:,.2f}", delta="-Gasto", delta_color="inverse")
-        k3.metric("Ahorro Mes", f"S/ {m_ing - m_gas:,.2f}", delta="Neto")
+        k3.metric("Balance", f"S/ {m_ing - m_gas:,.2f}", delta="Ahorro")
 
-    # 2. CUENTAS
+    # 2. CUENTAS (CAJA BLANCA)
     with st.container():
-        # Título y botón borrar al lado (como pediste)
         st.subheader("💳 Mis Cuentas")
         cols_c = st.columns(3)
         for i, c in enumerate(ctas):
@@ -278,16 +295,15 @@ with col_R:
             sal = ing - gas
             
             with cols_c[i % 3]:
-                with st.container(): # Tarjeta interna
-                    # Layout: Nombre a la izquierda, Borrar a la derecha
+                # Tarjeta interna grisácea para diferenciar
+                with st.container(border=True):
                     h1, h2 = st.columns([3, 1])
                     h1.write(f"**{c}**")
-                    if h2.button("🗑️", key=f"d_c_{i}"): pop_delete("cta", c)
-                    
-                    st.metric("Saldo", f"S/ {sal:,.2f}")
+                    if h2.button("🗑️", key=f"dc_{i}"): pop_delete("cta", c)
+                    st.metric("Saldo", f"S/ {sal:,.2f}", label_visibility="collapsed")
                     if ing > 0: st.progress(min(max(sal/ing, 0.0), 1.0))
 
-    # 3. METAS
+    # 3. METAS (CAJA BLANCA)
     with st.container():
         st.subheader("🚦 Presupuestos")
         g_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
@@ -298,27 +314,25 @@ with col_R:
             real = g_cat.get(cat, 0); pct = (real/top) if top > 0 else 0
             
             with cols_m[i % 2]:
-                with st.container():
+                with st.container(border=True):
                     m1, m2 = st.columns([3, 1])
                     m1.write(f"**{cat}**")
-                    if m2.button("🗑️", key=f"d_m_{i}"): pop_delete("meta", cat)
-                    
+                    if m2.button("🗑️", key=f"dm_{i}"): pop_delete("meta", cat)
                     st.caption(f"S/ {real:,.0f} / {top:,.0f}")
                     if pct > 1: st.progress(1.0); st.error("Excedido")
                     else: st.progress(pct)
 
-# --- 9. HISTORIAL ---
+# --- 9. HISTORIAL (CAJA BLANCA FINAL) ---
 with st.container():
     st.subheader("📂 Últimos Movimientos")
     if not df.empty:
-        rows = df_f.sort_values('ID_Fila', ascending=False).head(10)
+        rows = df_f.sort_values('ID_Fila', ascending=False).head(8)
         for idx, row in rows.iterrows():
-            with st.container():
+            with st.container(border=True):
                 rc1, rc2, rc3, rc4, rc5 = st.columns([1, 1.5, 3, 1.5, 0.5])
                 rc1.caption(row['Fecha_dt'].strftime('%d/%m'))
                 rc2.write(f"**{row['Usuario']}**")
                 rc3.write(row['Descripcion'] or row['Categoria'])
                 col = "green" if row['Tipo']=="Ingreso" else "red"
                 rc4.markdown(f":{col}[**S/ {row['Monto']:.2f}**]")
-                # Botón de borrado simple (x)
-                if rc5.button("❌", key=f"del_{row['ID_Fila']}"): pop_delete("reg", row['ID_Fila'])
+                if rc5.button("❌", key=f"d_r_{row['ID_Fila']}"): pop_delete("reg", row['ID_Fila'])
