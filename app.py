@@ -119,8 +119,7 @@ except Exception:
     time.sleep(2)
     st.rerun()
 
-# --- CÁLCULOS GLOBALES (LO NUEVO) ---
-# Usamos el DataFrame completo (df) sin filtrar por mes para los totales históricos
+# --- CÁLCULOS GLOBALES ---
 total_ingresos_historico = 0
 total_gastos_historico = 0
 saldo_cuentas_total = 0
@@ -128,25 +127,21 @@ saldo_cuentas_total = 0
 if not df.empty:
     total_ingresos_historico = df[df['Tipo'] == 'Ingreso']['Monto'].sum()
     total_gastos_historico = df[df['Tipo'] == 'Gasto']['Monto'].sum()
+    ahorro_total_historico = total_ingresos_historico - total_gastos_historico
     
-    # Saldo real calculado cuenta por cuenta
-    saldos = {}
+    # Calculamos saldo total simple para el KPI de arriba
     for c in lista_cuentas:
         i = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
         g = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldos[c] = i - g
-    saldo_cuentas_total = sum(saldos.values())
+        saldo_cuentas_total += (i - g)
 else:
-    saldos = {c: 0 for c in lista_cuentas}
-
-ahorro_total_historico = total_ingresos_historico - total_gastos_historico
+    ahorro_total_historico = 0
+    saldo_cuentas_total = 0
 
 # --- VISUALIZACIÓN: ESTADO GLOBAL ---
 st.subheader("Estado Global (Histórico)")
 col_g1, col_g2 = st.columns(2)
-# Mostramos el dinero que tienen disponible HOY (Saldo Total)
 col_g1.metric("Saldo Total Disponible", f"S/ {saldo_cuentas_total:.2f}")
-# Mostramos el performance histórico (Ahorro Total)
 col_g2.metric("Ahorro Total Acumulado", f"S/ {ahorro_total_historico:.2f}", 
               delta="Total Histórico")
 
@@ -185,20 +180,46 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 
 st.divider()
 
-# 2. Cuentas
-st.subheader(f"Detalle por Cuentas")
-cc = st.columns(3)
-ix = 0
-for c, s in saldos.items():
-    with cc[ix%3]:
+# 2. CUENTAS (LOGICA CORREGIDA: BARRA = SALDO / INGRESOS TOTALES DE ESA CUENTA)
+st.subheader("CUENTAS")
+cols_c = st.columns(3)
+idx_c = 0
+
+for cuenta in lista_cuentas:
+    # Filtramos SOLO los movimientos de ESTA cuenta (Histórico completo)
+    if not df.empty:
+        ingresos_cuenta = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+        gastos_cuenta = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+        saldo_cuenta = ingresos_cuenta - gastos_cuenta
+    else:
+        ingresos_cuenta, gastos_cuenta, saldo_cuenta = 0, 0, 0
+
+    with cols_c[idx_c % 3]:
         with st.container(border=True):
-            st.write(f"**{c}**")
-            if s >= 0:
-                st.metric("Saldo", f"S/ {s:.2f}")
-                st.progress(min((s/saldo_cuentas_total) if saldo_cuentas_total>0 else 0, 1.0))
+            st.write(f"**{cuenta}**")
+            
+            if saldo_cuenta >= 0:
+                st.metric("Saldo", f"S/ {saldo_cuenta:.2f}")
+                
+                # CÁLCULO DE LA BARRA DE ESTADO
+                # Si han ingresado 100 soles a la cuenta en su historia, ese es el 100%
+                # Si gastas 50, te quedan 50 -> Barra al 50%
+                if ingresos_cuenta > 0:
+                    porcentaje = saldo_cuenta / ingresos_cuenta
+                    # Aseguramos que esté entre 0 y 1 para que no de error
+                    porcentaje_barra = min(max(porcentaje, 0.0), 1.0)
+                else:
+                    porcentaje_barra = 0.0
+                
+                st.progress(porcentaje_barra)
+                # Texto explicativo pequeño
+                st.caption(f"Queda: {porcentaje_barra*100:.0f}% de lo ingresado")
+                
             else:
-                st.metric("Deuda", f"S/ {s:.2f}", delta_color="inverse")
-    ix += 1
+                st.metric("Saldo", f"S/ {saldo_cuenta:.2f}", delta="En Rojo", delta_color="inverse")
+                st.error("¡Cuenta sobregirada!")
+                
+    idx_c += 1
 
 st.divider()
 
@@ -287,4 +308,3 @@ with st.expander("Borrar Último"):
                     st.rerun()
             except Exception as e:
                 st.error(f"Error borrando: {e}")
-
