@@ -5,114 +5,135 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pytz
 import base64
+import time
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="wide", page_icon="🐹")
 
-# --- 2. FUNCIONES DE UTILIDAD (CARGAR IMÁGENES) ---
-def get_img_as_base64(file):
+# --- 2. CARGADOR DE IMÁGENES (PARA CSS) ---
+def get_img_b64(path):
     try:
-        with open(file, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
     except: return ""
 
-# Cargamos las imágenes en memoria para usarlas en el CSS
-img_fondo = get_img_as_base64("fondo.jpg")
-img_tarjeta = get_img_as_base64("tarjeta.png") # Tu imagen marrón de tarjeta
-img_logo = get_img_as_base64("logo.png") # Tu logo
+bg_fondo = get_img_b64("fondo.jpg")
+bg_tarjeta = get_img_b64("Tarjeta fondo.png")
+img_logo = get_img_b64("logo.png")
 
-# Colores extraídos de tu diseño
-COLOR_TEXTO = "#4A3B2A" # Marrón oscuro café
-COLOR_INPUT_BG = "#E8DCC5" # Beige oscurito para inputs
-COLOR_TITULOS = "#000000"
-
-# --- 3. CSS "CAPIGASTOS GAME UI" ---
+# --- 3. CSS "CAPIGASTOS REAL" (ESTILO VIDEOJUEGO/STICKER) ---
 st.markdown(f"""
 <style>
-/* FUENTE */
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+    /* FUENTE GENERAL */
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+    
+    html, body, [class*="css"] {{
+        font-family: 'Fredoka', sans-serif;
+        color: #000000;
+    }}
 
-html, body, [class*="css"] {{
-    font-family: 'Fredoka', sans-serif;
-    color: {COLOR_TEXTO};
-}}
+    /* FONDO DE PANTALLA */
+    .stApp {{
+        background-image: url("data:image/jpg;base64,{bg_fondo}");
+        background-size: cover;
+        background-attachment: fixed;
+    }}
 
-/* FONDO PRINCIPAL */
-.stApp {{
-    background-image: url("data:image/jpg;base64,{img_fondo}");
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-}}
+    /* --- CLASE MAESTRA: CAJA CONTENEDORA (ESTILO 'HOJA BOND' / BEIGE) --- */
+    .bloque-capibara {{
+        background-color: #FDF5E6; /* Beige Crema */
+        border: 2px solid #4A3B2A; /* Borde Marrón Café */
+        border-radius: 15px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+    }}
 
-/* --- PANEL IZQUIERDO (REGISTRO) --- */
-/* Creamos el estilo del papel beige largo */
-.panel-registro {{
-    background-color: #E6D2B5; /* Color arena/papel */
-    border: 3px solid #5C4033; /* Borde marrón grueso */
-    border-radius: 15px;
-    padding: 20px;
-    box-shadow: 5px 5px 0px rgba(0,0,0,0.3);
-}}
+    /* TÍTULOS */
+    h1, h2, h3, h4 {{
+        color: #4A3B2A !important;
+        font-weight: 800 !important;
+        margin: 0px !important;
+        padding-bottom: 5px;
+    }}
 
-/* --- TARJETAS DE CUENTAS (Estilo Imagen) --- */
-.tarjeta-capibara {{
-    background-image: url("data:image/png;base64,{img_tarjeta}");
-    background-size: cover;
-    border-radius: 15px;
-    padding: 20px;
-    height: 140px; /* Altura fija para que se vea igual a tu foto */
-    color: #FFFFFF; /* Texto blanco dentro de la tarjeta marrón */
-    box-shadow: 3px 3px 5px rgba(0,0,0,0.4);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    margin-bottom: 10px;
-}}
+    /* INPUTS (CAJAS DE TEXTO Y SELECTORES) */
+    .stTextInput input, .stNumberInput input, .stSelectbox div, .stDateInput input {{
+        background-color: #FFFFFF !important;
+        border: 2px solid #4A3B2A !important;
+        border-radius: 10px !important;
+        color: #000000 !important;
+        font-weight: 600;
+    }}
+    
+    /* Arreglo específico para que el dropdown se vea bien */
+    div[data-baseweb="select"] > div {{
+        background-color: #FFFFFF !important;
+        border: 2px solid #4A3B2A !important;
+        color: #000000 !important;
+    }}
+    
+    /* BOTONES (ESTILO MARRÓN) */
+    .stButton > button {{
+        background-color: #D2B48C;
+        color: #4A3B2A;
+        border: 2px solid #4A3B2A;
+        border-radius: 12px;
+        font-weight: 900;
+        box-shadow: 2px 2px 0px #4A3B2A;
+        width: 100%;
+    }}
+    .stButton > button:hover {{
+        background-color: #E6C29A;
+        transform: translateY(-2px);
+    }}
+    
+    /* TARJETA DE CRÉDITO PERSONALIZADA (CSS + IMAGEN) */
+    .card-box {{
+        background-image: url("data:image/png;base64,{bg_tarjeta}");
+        background-size: 100% 100%;
+        height: 160px;
+        border-radius: 15px;
+        position: relative;
+        margin-bottom: 10px;
+        box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
+        color: white;
+        padding: 15px;
+    }}
+    .card-title {{
+        font-size: 14px;
+        opacity: 0.9;
+        font-weight: bold;
+    }}
+    .card-saldo {{
+        font-size: 26px;
+        font-weight: 900;
+        margin-top: 35px;
+        text-shadow: 1px 1px 2px black;
+    }}
+    .card-name {{
+        position: absolute;
+        bottom: 15px;
+        left: 15px;
+        font-size: 12px;
+        opacity: 0.8;
+    }}
 
-/* --- BOTONES PERSONALIZADOS --- */
-/* Forzamos estilos a los botones de Streamlit para que parezcan los tuyos */
-div.stButton > button {{
-    background-color: #D2B48C;
-    color: #4A3B2A;
-    border: 2px solid #4A3B2A;
-    border-radius: 20px;
-    font-weight: bold;
-    box-shadow: 2px 2px 0px #4A3B2A;
-}}
-div.stButton > button:active {{
-    transform: translateY(2px);
-    box-shadow: none;
-}}
-
-/* --- INPUTS QUE PAREZCAN DEL JUEGO --- */
-.stTextInput input, .stNumberInput input, .stSelectbox div, .stDateInput input {{
-    background-color: {COLOR_INPUT_BG} !important;
-    border: 1px solid #8B5A2B !important;
-    border-radius: 8px !important;
-    color: #4A3B2A !important;
-}}
-
-/* --- TABLAS (MOVIMIENTOS) --- */
-/* Cabecera naranja/marrón como tu diseño */
-thead tr th {{
-    background-color: #D2691E !important; /* Chocolate */
-    color: white !important;
-    border: 1px solid #4A3B2A !important;
-}}
-tbody tr td {{
-    background-color: #FFF8DC !important; /* Crema */
-    border: 1px solid #DEB887 !important;
-    color: black !important;
-}}
-
-/* Ocultar header rojo */
-header {{visibility: hidden;}}
+    /* Ocultar header de Streamlit */
+    header {{visibility: hidden;}}
+    
+    /* KPI BOX (SALDO/AHORRO) */
+    .kpi-box {{
+        background-color: #E8DCC5;
+        border: 2px solid #4A3B2A;
+        border-radius: 20px;
+        text-align: center;
+        padding: 10px;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. CONEXIÓN BACKEND ---
+# --- 4. CONEXIÓN (CON FIX DE ERROR KEYERROR) ---
 @st.cache_resource
 def conectar():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -122,230 +143,242 @@ def conectar():
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     return gspread.authorize(creds).open("Finanzas_RodrigoKrys")
 
-def intento(func):
-    try: return func()
-    except: time.sleep(1)
-
 try:
     sh = conectar()
     ws_reg = sh.worksheet("Registro")
     ws_cta = sh.worksheet("Cuentas")
     ws_pre = sh.worksheet("Presupuestos")
-    ws_pag = sh.worksheet("Pagos") # ¡Nueva hoja para Pagos Pendientes!
 except:
-    st.error("⚠️ Conexión fallida. Revisa internet."); st.stop()
+    st.error("⚠️ Error de conexión. Verifica tu internet o credentials.json"); st.stop()
 
 def limpiar(): st.cache_data.clear()
 
-# --- 5. FUNCIONES DE DATOS ---
+# --- 5. OBTENER DATOS (BLINDADO CONTRA ERRORES) ---
 @st.cache_data(ttl=10)
 def get_data():
-    d = intento(lambda: ws_reg.get_all_records())
-    if not d: return pd.DataFrame(columns=['ID','Fecha','Hora','Usuario','Cuenta','Tipo','Categoria','Monto','Descripcion'])
-    df = pd.DataFrame(d)
-    df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
-    df['Fecha_dt'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
-    df['ID_Fila'] = df.index + 2
-    return df
+    try:
+        data = ws_reg.get_all_records()
+        # Si la hoja está vacía, devolvemos un DataFrame vacío pero con columnas correctas
+        if not data:
+            return pd.DataFrame(columns=['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion'])
+        
+        df = pd.DataFrame(data)
+        
+        # FIX KEYERROR: Asegurarnos que existan las columnas críticas
+        if 'Monto' not in df.columns: df['Monto'] = 0
+        if 'Fecha' not in df.columns: df['Fecha'] = ""
+        
+        df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+        df['Fecha_dt'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
+        df['ID_Fila'] = df.index + 2
+        return df
+    except Exception as e:
+        st.error(f"Error leyendo datos: {e}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=10)
 def get_cuentas():
-    return intento(lambda: ws_cta.col_values(1))[1:] or ["Efectivo"]
+    try:
+        return ws_cta.col_values(1)[1:] # Ignorar encabezado
+    except: return ["Efectivo"]
 
 @st.cache_data(ttl=10)
 def get_metas():
-    return intento(lambda: ws_pre.get_all_records())
-
-@st.cache_data(ttl=10)
-def get_pagos():
-    # Nueva función para la hoja de Pagos
     try:
-        return intento(lambda: ws_pag.get_all_records())
-    except: return [] # Si no existe la hoja aun
+        return ws_pre.get_all_records()
+    except: return []
 
 # --- 6. LOGICA ---
 pe_zone = pytz.timezone('America/Lima')
 now = datetime.now(pe_zone)
 df = get_data()
-ctas = get_cuentas()
+ctas = get_cuentas() if get_cuentas() else ["Efectivo"] # Asegurar al menos una cuenta
 metas = get_metas()
 
-# --- 7. HEADER (LOGO, USUARIO, FILTROS, KPI) ---
-# Usamos columnas para imitar la barra superior
-c_h1, c_h2, c_h3, c_h4, c_h5 = st.columns([1, 1.5, 2, 1.5, 1.5], gap="small")
+# --- 7. HEADER (LOGO + FILTROS + KPI) ---
+# Usamos un contenedor invisible para organizar el top
+c_logo, c_filtros, c_kpi = st.columns([1, 2, 2], gap="medium")
 
-with c_h1:
-    # Logo Circular
-    st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="130" style="border-radius:50%; border: 3px solid #5C4033;">', unsafe_allow_html=True)
+with c_logo:
+    # LOGO DIRECTO (Sin bordes raros)
+    if img_logo:
+        st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="140">', unsafe_allow_html=True)
+    else:
+        st.title("🐹")
 
-with c_h2:
-    st.write("USUARIO:")
-    usuario_activo = st.selectbox("Usuario", ["RODRIGO", "KRYS"], label_visibility="collapsed")
-
-with c_h3:
-    st.write("SELECCIONA MES/AÑO:")
+with c_filtros:
+    # CAJA BEIGE PARA FILTROS (Para que se vea el texto 'Mes' y 'Año')
+    st.markdown('<div class="bloque-capibara" style="padding: 10px;">', unsafe_allow_html=True)
     col_m, col_a = st.columns(2)
     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    sel_mes = col_m.selectbox("Mes", meses, index=now.month-1, label_visibility="collapsed")
-    sel_anio = col_a.number_input("Año", value=now.year, label_visibility="collapsed")
+    sel_mes = col_m.selectbox("MES", meses, index=now.month-1, label_visibility="collapsed")
+    sel_anio = col_a.number_input("AÑO", value=now.year, label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
     mes_idx = meses.index(sel_mes) + 1
 
-# Filtramos Data
+# Filtrado de Datos
 if not df.empty and 'Fecha_dt' in df.columns:
     df_f = df[(df['Fecha_dt'].dt.month == mes_idx) & (df['Fecha_dt'].dt.year == sel_anio)]
-else: df_f = df
+else:
+    df_f = pd.DataFrame()
 
-# Cálculos KPI
-ingresos_tot = df[df['Tipo']=='Ingreso']['Monto'].sum()
-gastos_tot = df[df['Tipo']=='Gasto']['Monto'].sum()
-saldo_total_vida = ingresos_tot - gastos_tot
-ahorro_vida = saldo_total_vida # Simplificado por ahora
+# Cálculos Totales
+ingreso_total = df['Monto'][df['Tipo']=='Ingreso'].sum() if not df.empty else 0
+gasto_total = df['Monto'][df['Tipo']=='Gasto'].sum() if not df.empty else 0
+ahorro_vida = ingreso_total - gasto_total
 
-with c_h4:
-    # Burbuja Saldo Total
-    st.markdown(f"""
-    <div style="background-color:#E6D2B5; border:2px solid black; border-radius:20px; text-align:center; padding:5px;">
-        <b>SALDO TOTAL</b><br>
-        <span style="font-size:20px;">S/ {saldo_total_vida:,.2f}</span>
-    </div>
-    """, unsafe_allow_html=True)
+with c_kpi:
+    # KPIs Estilo Burbuja (Imagen 4)
+    k1, k2 = st.columns(2)
+    with k1:
+        st.markdown(f"""
+        <div class="kpi-box">
+            <div style="font-size:12px; font-weight:bold;">SALDO TOTAL</div>
+            <div style="font-size:20px; font-weight:900; color:#4A3B2A;">S/ {ahorro_vida:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""
+        <div class="kpi-box">
+            <div style="font-size:12px; font-weight:bold;">AHORRO TOTAL</div>
+            <div style="font-size:20px; font-weight:900; color:#2E8B57;">S/ {ahorro_vida:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-with c_h5:
-    # Burbuja Ahorro Total
-    st.markdown(f"""
-    <div style="background-color:#E6D2B5; border:2px solid black; border-radius:20px; text-align:center; padding:5px;">
-        <b>AHORRO TOTAL</b><br>
-        <span style="font-size:20px;">S/ {ahorro_vida:,.2f}</span>
-    </div>
-    """, unsafe_allow_html=True)
+# --- 8. CUERPO PRINCIPAL ---
+col_izq, col_der = st.columns([1, 3], gap="medium")
 
-st.write("") # Espacio
-
-# --- 8. LAYOUT PRINCIPAL (IZQUIERDA: REGISTRO | DERECHA: DASHBOARD) ---
-col_L, col_R = st.columns([1, 3], gap="large")
-
-# ==========================================
-# 🟩 PANEL IZQUIERDO: REGISTRO (FORMULARIO)
-# ==========================================
-with col_L:
-    # Usamos HTML para abrir el div "panel-registro"
-    st.markdown('<div class="panel-registro">', unsafe_allow_html=True)
-    st.markdown("### REGISTRO")
+# ================= IZQUIERDA: REGISTRO (CON FONDO BEIGE) =================
+with col_izq:
+    st.markdown('<div class="bloque-capibara">', unsafe_allow_html=True)
+    st.markdown("### 📝 REGISTRO")
     
-    with st.form("frm_registro", clear_on_submit=True):
-        st.write("**TIPO DE REGISTRO**")
-        op = st.radio("Tipo", ["GASTO", "INGRESO", "TRANSFERENCIA"], label_visibility="collapsed")
+    # Formulario dentro de la caja beige
+    with st.form("form_reg", clear_on_submit=True):
+        st.write("TYPE:")
+        op = st.radio("Acción", ["GASTO", "INGRESO", "TRANSFERENCIA"], label_visibility="collapsed")
         
-        st.write("**CUENTA AFECTADA** (Importante)")
+        st.write("USUARIO:")
+        u = st.selectbox("Us", ["Rodrigo", "Krys"], label_visibility="collapsed")
+        
+        cats = [m['Categoria'] for m in metas] + ["COMIDA", "TAXI", "OTROS"]
+        
         if op == "TRANSFERENCIA":
-            c_ori = st.selectbox("Desde:", ctas)
-            c_des = st.selectbox("Hacia:", ctas)
+            st.write("DE CUENTA -> A CUENTA:")
+            c1, c2 = st.columns(2)
+            c_ori = c1.selectbox("De", ctas, label_visibility="collapsed")
+            c_des = c2.selectbox("A", ctas, label_visibility="collapsed")
+            cat = "Transferencia"
+            cta = c_ori
         else:
-            cta = st.selectbox("Cuenta:", ctas)
+            st.write("CUENTA AFECTADA:")
+            cta = st.selectbox("Cta", ctas, label_visibility="collapsed")
+            st.write("CATEGORÍA:")
+            if op == "GASTO": cat = st.selectbox("Cat", cats, label_visibility="collapsed")
+            else: cat = st.selectbox("Cat", ["SUELDO", "OTROS"], label_visibility="collapsed")
             
-        st.write("**CATEGORÍA**")
-        categorias = ["COMIDA", "TEMU", "TREN", "TAXI", "ESTACIONAMIENTO", "GASOLINA", "MANTENIMIENTO", "COMPRAS", "REGALO", "PERSONAL", "PASAJE", "SUELDO", "OTROS"]
-        cat = st.selectbox("Cat:", categorias)
-        
-        st.write("**MONTO S/**")
-        monto = st.number_input("Monto", min_value=0.01, format="%.2f", label_visibility="collapsed")
-        
-        st.write("**DESCRIPCIÓN**")
+        st.write("MONTO S/:")
+        monto = st.number_input("S/", min_value=0.01, format="%.2f", label_visibility="collapsed")
+        st.write("DESCRIPCIÓN:")
         desc = st.text_input("Desc", label_visibility="collapsed")
         
-        st.write("**FOTO / EVIDENCIA**")
-        foto = st.file_uploader("Subir", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+        st.write("")
+        if st.form_submit_button("💾 GUARDAR"):
+            fd = datetime.now(pe_zone).strftime("%Y-%m-%d")
+            ft = datetime.now(pe_zone).strftime("%H:%M:%S")
+            # Lógica de guardado segura
+            try:
+                if op == "TRANSFERENCIA":
+                    ws_reg.append_row([fd, ft, u, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"])
+                    ws_reg.append_row([fd, ft, u, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"])
+                else:
+                    tipo_real = "Gasto" if op == "GASTO" else "Ingreso"
+                    ws_reg.append_row([fd, ft, u, cta, tipo_real, cat, monto, desc])
+                limpiar(); st.success("Guardado!"); time.sleep(1); st.rerun()
+            except Exception as e:
+                st.error(f"Error guardando: {e}")
+                
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ================= DERECHA: DASHBOARD (CAJAS SEPARADAS) =================
+with col_der:
+    
+    # 1. RESUMEN MENSUAL
+    st.markdown('<div class="bloque-capibara">', unsafe_allow_html=True)
+    st.markdown(f"### RESUMEN: {sel_mes.upper()}")
+    
+    # Métricas del mes
+    if not df_f.empty:
+        ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
+        gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
+    else:
+        ing_m, gas_m = 0, 0
         
-        guardar = st.form_submit_button("GUARDAR", use_container_width=True)
-        
-        if guardar:
-            fecha_pe = datetime.now(pe_zone).strftime("%Y-%m-%d")
-            hora_pe = datetime.now(pe_zone).strftime("%H:%M:%S")
-            # Lógica de guardado (Simplificada para no alargar el código)
-            # Aquí iría la lógica de Drive para la foto, por ahora guardamos texto
-            url_foto = "Pendiente Configurar Drive" if foto else ""
-            
-            if op == "TRANSFERENCIA":
-                ws_reg.append_row([fecha_pe, hora_pe, usuario_activo, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"])
-                ws_reg.append_row([fecha_pe, hora_pe, usuario_activo, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"])
-            else:
-                tipo_real = "Gasto" if op == "GASTO" else "Ingreso"
-                ws_reg.append_row([fecha_pe, hora_pe, usuario_activo, cta, tipo_real, cat, monto, desc])
-            
-            limpiar(); st.success("Guardado!"); st.rerun()
+    rm1, rm2, rm3 = st.columns(3)
+    rm1.metric("INGRESOS", f"S/ {ing_m:,.2f}")
+    rm2.metric("GASTOS", f"S/ {gas_m:,.2f}")
+    rm3.metric("BALANCE", f"S/ {ing_m - gas_m:,.2f}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True) # Cierra panel registro
+    # 2. CUENTAS (CON TARJETA DE FONDO)
+    st.markdown('<div class="bloque-capibara">', unsafe_allow_html=True)
+    h_cta, b_cta = st.columns([4, 2])
+    h_cta.markdown("### 💳 MIS CUENTAS")
+    
+    # Botones Agregar/Eliminar
+    with b_cta:
+        bt1, bt2 = st.columns(2)
+        if bt1.button("➕"): 
+            n = st.text_input("Nueva Cuenta:")
+            if n and st.button("OK"): ws_cta.append_row([n]); limpiar(); st.rerun()
+        if bt2.button("➖"):
+             d = st.selectbox("Borrar:", ctas)
+             if d and st.button("Confirmar Borrar"): 
+                 cell = ws_cta.find(d); ws_cta.delete_rows(cell.row); limpiar(); st.rerun()
 
-# ==========================================
-# 🟦 PANEL DERECHO: DASHBOARD
-# ==========================================
-with col_R:
-    # --- FILA 1: RESUMEN MENSUAL (Burbujas) ---
-    st.markdown(f"### RESUMEN {sel_mes.upper()}:")
-    rm_ing = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
-    rm_gas = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
-    
-    k1, k2, k3 = st.columns(3)
-    k1.info(f"Ingresos: S/ {rm_ing:,.2f}")
-    k2.warning(f"Gastos: S/ {rm_gas:,.2f}")
-    k3.success(f"Balance: S/ {rm_ing - rm_gas:,.2f}")
-    
-    st.write("---")
-    
-    # --- FILA 2: MIS CUENTAS (TARJETAS + BOTONES) ---
-    c_cta_tit, c_cta_btn = st.columns([3, 2])
-    c_cta_tit.markdown("### 💳 MIS CUENTAS")
-    with c_cta_btn:
-        b1, b2 = st.columns(2)
-        if b1.button("AGREGAR CTA"):
-            # Aquí iría el popup (st.dialog)
-            pass 
-        if b2.button("ELIMINAR CTA"):
-            pass
-
-    # CARRUSEL DE TARJETAS (Simulado con Columnas)
-    cols_cards = st.columns(3)
+    # Grid de Tarjetas
+    cols_c = st.columns(3)
     for i, c in enumerate(ctas):
-        # Calcular saldo real
-        ing_c = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
-        gas_c = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
-        saldo_c = ing_c - gas_c
+        # Calcular saldo
+        if not df.empty:
+            ing = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
+            gas = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
+            saldo = ing - gas
+        else: saldo = 0
         
-        with cols_cards[i % 3]:
-            # AQUI ESTA LA MAGIA: HTML CON TU IMAGEN DE TARJETA
+        with cols_c[i % 3]:
+            # HTML PARA TARJETA
             st.markdown(f"""
-            <div class="tarjeta-capibara">
-                <div style="font-size:14px; opacity:0.8;">CAPIGASTOS</div>
-                <div style="font-size:24px; font-weight:bold; margin-top:10px;">S/ {saldo_c:,.2f}</div>
-                <div style="font-size:12px; margin-top:auto;">{c.upper()}</div>
+            <div class="card-box">
+                <div class="card-title">CAPIGASTOS</div>
+                <div class="card-saldo">S/ {saldo:,.2f}</div>
+                <div class="card-name">{c.upper()}</div>
             </div>
             """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.write("---")
-
-    # --- FILA 3: PRESUPUESTOS (BARRAS GRUESAS) ---
-    st.markdown("### 📊 PRESUPUESTOS")
-    # (Aquí iría la lógica de barras igual que antes pero con estilo CSS grueso)
+    # 3. MOVIMIENTOS (TABLA)
+    st.markdown('<div class="bloque-capibara">', unsafe_allow_html=True)
+    st.markdown("### 📋 ÚLTIMOS MOVIMIENTOS")
     
-    st.write("---")
-
-    # --- FILA 4: MOVIMIENTOS Y PAGOS PENDIENTES ---
-    col_movs, col_pend = st.columns([2, 1], gap="medium")
-    
-    with col_movs:
-        st.markdown("### MOVIMIENTOS 🐹")
-        if not df_f.empty:
-            # TABLA PERSONALIZADA HTML PARA QUE SE VEA COMO TU DISEÑO
-            # Headers naranjas, filas crema
-            html_table = df_f[['ID_Fila','Fecha','Hora','Usuario','Cuenta','Tipo','Categoria','Monto','Descripcion']].sort_values('ID_Fila', ascending=False).to_html(index=False, classes="table", border=0)
-            st.markdown(html_table, unsafe_allow_html=True)
-            
-            # Boton eliminar abajo
-            del_id = st.number_input("ID a Eliminar:", min_value=0)
-            if st.button("ELIMINAR REGISTRO"):
-                ws_reg.delete_rows(int(del_id)); limpiar(); st.rerun()
-
-    with col_pend:
-        st.markdown("### PAGOS PENDIENTES 🐻")
-        # Aquí iría la tabla de Pagos Pendientes
-        st.info("Próximamente: Lista de Deudas")
+    if not df_f.empty:
+        # Mostramos tabla limpia
+        st.dataframe(
+            df_f[['Fecha', 'Usuario', 'Cuenta', 'Categoria', 'Monto', 'Descripcion']].sort_index(ascending=False),
+            use_container_width=True,
+            hide_index=True
+        )
+        # Eliminador simple por ID (Fila)
+        st.write("---")
+        cd1, cd2 = st.columns([3, 1])
+        id_borrar = cd1.number_input("N° de Fila a Eliminar (Ver Google Sheet)", min_value=2, step=1)
+        if cd2.button("ELIMINAR REGISTRO"):
+            try:
+                ws_reg.delete_rows(int(id_borrar))
+                limpiar(); st.success("Eliminado"); time.sleep(1); st.rerun()
+            except:
+                st.error("Error al borrar. Verifica el ID.")
+    else:
+        st.info("No hay movimientos este mes.")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
