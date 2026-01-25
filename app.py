@@ -10,7 +10,7 @@ import base64
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
 
-# --- FUNCIÓN PARA CARGAR IMÁGENES ---
+# --- CARGAR IMÁGENES ---
 def get_image_as_base64(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -108,7 +108,7 @@ with st.sidebar:
                 time.sleep(1)
                 st.rerun()
 
-# --- HEADER CON LOGO ---
+# --- HEADER ---
 col_logo, col_titulo = st.columns([1, 4]) 
 with col_logo:
     if img_logo:
@@ -190,11 +190,10 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # ==========================================
-# 2. CUENTAS (DISEÑO TARJETA CORREGIDO) 💳
+# 2. CUENTAS (CORRECCIÓN DE HTML) 💳
 # ==========================================
 st.subheader("CUENTAS")
 
-# Estilos CSS
 st.markdown("""
 <style>
     .tarjeta-capigastos {
@@ -211,23 +210,11 @@ st.markdown("""
         flex-direction: column;
         justify-content: space-between;
     }
-    .texto-sombra {
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    }
-    .barra-fondo {
-        background-color: rgba(255, 255, 255, 0.3);
-        border-radius: 5px;
-        height: 10px;
-        width: 100%;
-        margin-top: 5px;
-    }
-    .barra-progreso {
-        background-color: #4CAF50; /* Verde */
-        height: 100%;
-        border-radius: 5px;
-    }
+    .texto-sombra { text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
+    .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 10px; width: 100%; margin-top: 5px; }
+    .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
 </style>
-""", unsafe_allow_html=True) # <-- ESTO YA ESTABA BIEN
+""", unsafe_allow_html=True)
 
 cols_c = st.columns(2)
 idx_c = 0
@@ -235,42 +222,39 @@ idx_c = 0
 for cuenta in lista_cuentas:
     # Cálculos
     if not df.empty:
-        ingresos_historicos = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-        gastos_historicos = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldo_disponible = ingresos_historicos - gastos_historicos
+        ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+        gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+        saldo_d = ingresos_h - gastos_h
     else:
-        ingresos_historicos, gastos_historicos, saldo_disponible = 0, 0, 0
+        ingresos_h, gastos_h, saldo_d = 0, 0, 0
 
-    if ingresos_historicos > 0:
-        pct = min(max(saldo_disponible / ingresos_historicos, 0.0), 1.0) * 100
+    if ingresos_h > 0:
+        pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100
     else:
         pct = 0
 
-    bg_style = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
+    bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
 
-    # CÓDIGO HTML DE LA TARJETA
-    html_tarjeta = f"""
-    <div class="tarjeta-capigastos" style="{bg_style}">
+    # CONSTRUCCIÓN HTML SEGURA (SIN SALTOS DE LÍNEA EXCESIVOS)
+    html = f"""
+    <div class="tarjeta-capigastos" style="{bg}">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-                <h3 class="texto-sombra" style="margin: 0; color: white; font-size: 18px;">{cuenta}</h3>
-                <small class="texto-sombra" style="opacity: 0.9;">Capigastos Card</small>
+                <h3 class="texto-sombra" style="margin:0; color:white; font-size:18px;">{cuenta}</h3>
+                <small class="texto-sombra" style="opacity:0.9;">Capigastos Card</small>
             </div>
             <div style="text-align: right;">
                 <small class="texto-sombra">Saldo Disponible</small>
-                <h2 class="texto-sombra" style="margin: 0; color: white;">S/ {saldo_disponible:,.2f}</h2>
+                <h2 class="texto-sombra" style="margin:0; color:white;">S/ {saldo_d:,.2f}</h2>
             </div>
         </div>
-
         <div style="margin-top: 10px;">
-            <span class="texto-sombra" style="font-size: 12px; margin-right: 15px;">⬇ Ingresos: S/ {ingresos_historicos:,.2f}</span>
-            <span class="texto-sombra" style="font-size: 12px; color: #ffcccb;">⬆ Gastado: S/ {gastos_historicos:,.2f}</span>
+            <span class="texto-sombra" style="font-size:12px; margin-right:15px;">⬇ Ingresos: S/ {ingresos_h:,.2f}</span>
+            <span class="texto-sombra" style="font-size:12px; color:#ffcccb;">⬆ Gastado: S/ {gastos_h:,.2f}</span>
         </div>
-
         <div style="margin-top: auto;">
-            <div style="display: flex; justify-content: space-between; font-size: 12px;" class="texto-sombra">
-                <span>Estado de Cuenta</span>
-                <span>{pct:.0f}%</span>
+            <div style="display:flex; justify-content:space-between; font-size:12px;" class="texto-sombra">
+                <span>Estado de Cuenta</span><span>{pct:.0f}%</span>
             </div>
             <div class="barra-fondo">
                 <div class="barra-progreso" style="width: {pct}%;"></div>
@@ -280,8 +264,7 @@ for cuenta in lista_cuentas:
     """
 
     with cols_c[idx_c % 2]:
-        # ¡AQUÍ ESTABA EL PROBLEMA! FALTABA EL TRUE
-        st.markdown(html_tarjeta, unsafe_allow_html=True) 
+        st.markdown(html, unsafe_allow_html=True)
     
     idx_c += 1
 
