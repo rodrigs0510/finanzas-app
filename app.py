@@ -65,7 +65,6 @@ def intento_seguro(funcion_gspread):
 
 @st.cache_data(ttl=60)
 def obtener_datos():
-    # BLINDAJE CONTRA KEYERROR: Siempre devolvemos las columnas necesarias
     columnas_base = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     try:
         data = intento_seguro(lambda: ws_registro.get_all_records())
@@ -73,7 +72,6 @@ def obtener_datos():
             return pd.DataFrame(columns=columnas_base)
         
         df = pd.DataFrame(data)
-        # Aseguramos que existan todas las columnas aunque vengan vacías
         for col in columnas_base:
             if col not in df.columns:
                 df[col] = ""
@@ -120,48 +118,50 @@ def dialog_eliminar_cuenta(lista_actual):
         limpiar_cache(); st.success("Eliminada"); time.sleep(1); st.rerun()
     if c2.button("Cancelar"): st.rerun()
 
-# --- CSS DEFINITIVO (CORRECCIÓN DE BORDES Y LAYOUT) ---
+# --- CSS DEFINITIVO (CORRECCIÓN DE FONDOS) ---
 st.markdown(f"""
 <style>
-    /* 1. FONDO */
+    /* 1. FONDO DE LA PANTALLA PRINCIPAL */
     .stApp {{
         background-image: url("data:image/jpg;base64,{img_fondo}");
-        background-size: cover; background-position: center top; background-attachment: fixed;
+        background-size: cover; 
+        background-position: center top; 
+        background-attachment: fixed;
     }}
     
-    /* 2. TEXTOS Y FUENTES (Color marrón forzado) */
-    html, body, [class*="css"], h1, h2, h3, h4, p, span, label, div {{
+    /* 2. ESTILO PARA LOS CONTENEDORES (LAS CAJAS) */
+    /* Aquí está la magia: Pintamos el fondo de beige para tapar la imagen de atrás */
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        background-color: rgba(253, 245, 230, 0.95) !important; /* Beige 'Old Lace' Sólido */
+        border: 2px solid #8B4513 !important; /* Borde Marrón */
+        border-radius: 15px !important;
+        padding: 20px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }}
+
+    /* 3. TEXTOS (Color Marrón Capigastos) */
+    html, body, [class*="css"], h1, h2, h3, h4, p, span, label, div, .stMarkdown {{
         color: #4A3B2A !important; 
     }}
-    /* Excepción para textos dentro de tarjetas (blanco) */
-    .tarjeta-capigastos *, .tarjeta-capigastos div {{ color: white !important; }}
-
-    /* 3. INPUTS LIMPIOS (Sin bordes dobles feos) */
-    /* Selectbox y TextInput */
-    .stTextInput input, .stNumberInput input, div[data-baseweb="select"] > div {{
-        background-color: #FFF8DC !important; /* Crema suave */
-        color: #000000 !important;
-        border: 2px solid #8B4513 !important; /* Borde simple marrón */
-        border-radius: 8px !important;
-        box-shadow: none !important; /* Quita el brillo raro */
+    /* Excepción: Textos dentro de las tarjetas de crédito (blanco) */
+    .tarjeta-capigastos *, .tarjeta-capigastos div {{ 
+        color: white !important; 
     }}
-    
-    /* Quitar efecto de foco azul/rojo predeterminado */
+
+    /* 4. INPUTS (Cajas de texto y selectores) */
+    .stTextInput input, .stNumberInput input, div[data-baseweb="select"] > div {{
+        background-color: #FFFFFF !important; /* Fondo Blanco puro */
+        color: #000000 !important;
+        border: 2px solid #8B4513 !important;
+        border-radius: 8px !important;
+    }}
+    /* Quitar brillo azul al seleccionar */
     .stTextInput > div[data-baseweb="input-container"]:focus-within {{
-        border-color: #8B4513 !important;
+        border-color: #A0522D !important;
         box-shadow: none !important;
     }}
 
-    /* 4. CONTENEDORES DE SECCIÓN (CAJAS DEL DIAGRAMA) */
-    .seccion-caja {{
-        background-color: rgba(255, 255, 255, 0.85);
-        border: 2px solid #4A3B2A;
-        border-radius: 15px;
-        padding: 15px;
-        margin-bottom: 15px;
-    }}
-
-    /* 5. TARJETAS */
+    /* 5. TARJETAS VISUALES */
     .tarjeta-capigastos {{
         border-radius: 15px; padding: 15px; color: white !important; margin-bottom: 10px;
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3); position: relative; height: 180px;
@@ -174,22 +174,23 @@ st.markdown(f"""
     div.stButton > button[title="AGREGAR_IMG"] {{
         background-image: url("data:image/png;base64,{img_btn_add}");
         background-size: 100% 100%; border: none !important; background-color: transparent !important;
-        height: 40px; width: 100%;
+        height: 45px; width: 100%;
     }}
     div.stButton > button[title="ELIMINAR_IMG"] {{
         background-image: url("data:image/png;base64,{img_btn_del}");
         background-size: 100% 100%; border: none !important; background-color: transparent !important;
-        height: 40px; width: 100%;
+        height: 45px; width: 100%;
     }}
-    /* Botón Guardar Genérico */
+    /* Botón Genérico (Guardar, etc) */
     div.stButton > button {{
-        background-color: #8B4513; color: white !important; border-radius: 20px; border: 2px solid #5e2f0d;
+        background-color: #8B4513 !important; color: white !important; 
+        border-radius: 20px; border: 2px solid #5e2f0d !important;
     }}
 
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGICA ---
+# --- LOGICA DE DATOS ---
 zona_peru = pytz.timezone('America/Lima')
 try:
     df = obtener_datos()
@@ -210,13 +211,11 @@ if not df.empty:
         saldo_actual += (i-g)
 
 # ==============================================================================
-# 1. HEADER (LOGO | SELECCION MES | TOTALES) - [Fila 1 del Diagrama]
+# 1. HEADER (LOGO | SELECCION MES | TOTALES)
 # ==============================================================================
-# Usamos un container con fondo personalizado para simular el header
-with st.container(border=True):
+with st.container(border=True): # <--- AHORA ESTA CAJA TENDRA FONDO BEIGE
     c1, c2, c3 = st.columns([1.5, 1.5, 1.5], vertical_alignment="center")
     
-    # LOGO + TITULO
     with c1:
         cc1, cc2 = st.columns([1, 3])
         with cc1:
@@ -224,7 +223,6 @@ with st.container(border=True):
         with cc2:
             st.markdown("<h2>CAPIGASTOS</h2>", unsafe_allow_html=True)
 
-    # SELECCION MES
     with c2:
         meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         now = datetime.now(zona_peru)
@@ -233,14 +231,12 @@ with st.container(border=True):
         sel_anio = col_a.number_input("Año", value=now.year, label_visibility="collapsed")
         mes_idx = meses.index(sel_mes) + 1
 
-    # TOTALES
     with c3:
         st.markdown(f"<div style='text-align:right;'><b>Saldo Total:</b> S/ {saldo_actual:,.2f}<br><b>Ahorro Histórico:</b> S/ {ahorro_vida:,.2f}</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. CONSOLIDADO DEL MES - [Fila 2 del Diagrama]
+# 2. CONSOLIDADO DEL MES
 # ==============================================================================
-# Filtramos datos
 if not df.empty and 'Fecha' in df.columns:
     df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == sel_anio)]
 else: df_f = pd.DataFrame(columns=df.columns)
@@ -249,25 +245,24 @@ ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
 gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
 bal_m = ing_m - gas_m
 
-with st.container(border=True):
+with st.container(border=True): # <--- CAJA BEIGE
     st.markdown(f"<h4 style='text-align:center; margin:0;'>CONSOLIDADO: {sel_mes.upper()} {sel_anio}</h4>", unsafe_allow_html=True)
     k1, k2, k3 = st.columns(3)
     k1.metric("Ingresos", f"S/ {ing_m:,.2f}")
     k2.metric("Gastos", f"S/ {gas_m:,.2f}")
     k3.metric("Ahorro", f"S/ {bal_m:,.2f}")
 
-st.write("") # Espacio
+st.write("")
 
 # ==============================================================================
-# 3. CUERPO PRINCIPAL DIVIDIDO - [Fila 3 del Diagrama]
+# 3. CUERPO PRINCIPAL DIVIDIDO
 # ==============================================================================
-# Layout: Columna Izquierda (Formulario) vs Columna Derecha (Cuentas y Metas)
 col_main_left, col_main_right = st.columns([1, 1.8], gap="medium")
 
 # --- IZQUIERDA: FORMULARIO ---
 with col_main_left:
-    st.markdown("### 📝 FORMULARIO")
-    with st.container(border=True):
+    with st.container(border=True): # <--- CAJA BEIGE
+        st.markdown("### 📝 FORMULARIO")
         st.write("**Registrar:**")
         op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True, label_visibility="collapsed")
         
@@ -288,6 +283,7 @@ with col_main_left:
             monto = st.number_input("Monto S/", min_value=0.01, format="%.2f")
             desc = st.text_input("Descripción")
             
+            st.write("")
             if st.form_submit_button("GUARDAR", use_container_width=True):
                 try:
                     now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
@@ -304,15 +300,14 @@ with col_main_left:
 
 # --- DERECHA: CUENTAS Y METAS ---
 with col_main_right:
-    # 3.1 CUENTAS (Arriba Derecha)
-    with st.container(border=True):
+    # 3.1 CUENTAS
+    with st.container(border=True): # <--- CAJA BEIGE
         ch1, ch2, ch3 = st.columns([4, 1, 1], vertical_alignment="bottom")
         ch1.markdown("### 💳 CUENTAS")
-        # Botones con imágenes
+        # Botones Imagen
         if ch2.button("⠀   ⠀", key="add", help="AGREGAR_IMG"): dialog_agregar_cuenta()
         if ch3.button("⠀   ⠀", key="del", help="ELIMINAR_IMG"): dialog_eliminar_cuenta(lista_cuentas)
         
-        # Grid de 3 tarjetas
         cols_tarjetas = st.columns(3)
         for i, cuenta in enumerate(lista_cuentas):
             if not df.empty:
@@ -341,10 +336,10 @@ with col_main_right:
             """
             with cols_tarjetas[i%3]: st.markdown(html, unsafe_allow_html=True)
 
-    st.write("") # Espacio
+    st.write("")
 
-    # 3.2 METAS (Abajo Derecha)
-    with st.container(border=True):
+    # 3.2 METAS
+    with st.container(border=True): # <--- CAJA BEIGE
         st.markdown("### 🎯 METAS")
         if not df_f.empty: gas_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
         else: gas_cat = {}
@@ -363,14 +358,14 @@ with col_main_right:
 st.write("") 
 
 # ==============================================================================
-# 4. PIE DE PÁGINA (MOVIMIENTOS | PAGOS PENDIENTES) - [Fila 4 del Diagrama]
+# 4. PIE DE PÁGINA (MOVIMIENTOS | PAGOS PENDIENTES)
 # ==============================================================================
 col_foot_left, col_foot_right = st.columns([1.5, 1], gap="medium")
 
 # --- MOVIMIENTOS ---
 with col_foot_left:
-    st.markdown("### 📜 MOVIMIENTOS")
-    with st.container(border=True):
+    with st.container(border=True): # <--- CAJA BEIGE
+        st.markdown("### 📜 MOVIMIENTOS")
         if not df_f.empty:
             st.dataframe(
                 df_f[['Fecha', 'Cuenta', 'Categoria', 'Monto', 'Descripcion']].sort_values('Fecha', ascending=False),
@@ -385,11 +380,10 @@ with col_foot_left:
         else:
             st.info("Sin datos este mes.")
 
-# --- PAGOS PENDIENTES (NUEVA SECCIÓN) ---
+# --- PAGOS PENDIENTES ---
 with col_foot_right:
-    st.markdown("### ⏰ PAGOS PENDIENTES")
-    with st.container(border=True):
-        # Aquí puedes implementar lógica real luego. Por ahora es visual como el diagrama.
+    with st.container(border=True): # <--- CAJA BEIGE
+        st.markdown("### ⏰ PAGOS PENDIENTES")
         st.info("Próximos vencimientos:")
         st.markdown("""
         - 📅 **Luz del Sur:** 15/Feb (S/ 120.00)
