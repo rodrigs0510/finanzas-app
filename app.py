@@ -27,8 +27,6 @@ def get_image_as_base64(file_path):
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
 img_fondo = get_image_as_base64("fondo.jpg") 
-img_btn_add = get_image_as_base64("boton_agregar.png")
-img_btn_del = get_image_as_base64("boton_eliminar.png")
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -52,7 +50,7 @@ except Exception as e:
     st.error("Error conectando a Google. Espera 1 minuto y recarga.")
     st.stop()
 
-# --- FUNCIONES ---
+# --- FUNCIONES BLINDADAS ---
 def intento_seguro(funcion_gspread):
     max_retries = 3
     for i in range(max_retries):
@@ -113,89 +111,102 @@ def dialog_eliminar_cuenta(lista_actual):
         limpiar_cache(); st.success("Eliminada"); time.sleep(1); st.rerun()
     if c2.button("Cancelar"): st.rerun()
 
-# --- CSS: ESTILO PANELES SÓLIDOS ---
+# --- CSS SUPERFICIES Y BOTONES (V16.0) ---
 st.markdown(f"""
 <style>
-    /* 1. FONDO GENERAL DE LA APP */
+    /* 1. FONDO DE PANTALLA */
     .stApp {{
         background-image: url("data:image/jpg;base64,{img_fondo}");
         background-size: cover; 
-        background-position: center top; 
+        background-position: center; 
         background-attachment: fixed;
     }}
 
-    /* 2. REGLA DE ORO: CUALQUIER CAJA CON BORDE SERÁ BLANCA SÓLIDA */
+    /* 2. SUPERFICIE SÓLIDA PARA LAS SECCIONES (LA SOLUCIÓN AL TRANSPARENTE) */
     div[data-testid="stVerticalBlockBorderWrapper"] {{
-        background-color: #FFFFFF !important; /* Blanco Puro */
-        border: 2px solid #8B4513 !important; /* Borde Marrón */
+        background-color: #FFF8DC !important; /* Beige 'Cornsilk' Sólido */
+        border: 3px solid #8B4513 !important; /* Borde Marrón */
         border-radius: 15px !important;
-        padding: 20px !important;
-        opacity: 1 !important; /* TOTALMENTE OPACO */
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
+        padding: 15px !important;
+        opacity: 1 !important; /* Opacidad Total */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
     }}
     
-    /* Asegurar que el fondo blanco tape lo de atrás */
+    /* Forzar que el contenido dentro no sea transparente */
     div[data-testid="stVerticalBlockBorderWrapper"] > div {{
-        background-color: #FFFFFF !important;
+        background-color: transparent !important;
     }}
 
-    /* 3. TEXTOS NEGROS PARA QUE SE LEAN */
+    /* 3. TEXTOS NEGROS/MARRONES PARA LEER BIEN */
     h1, h2, h3, h4, p, span, label, div, .stMarkdown, .stMetricLabel {{
-        color: #333333 !important; /* Gris muy oscuro casi negro */
+        color: #4A3B2A !important;
         text-shadow: none !important;
     }}
     
-    /* 4. Excepciones: Textos dentro de las TARJETAS (blancos) */
-    .tarjeta-capigastos *, .tarjeta-capigastos div, .tarjeta-capigastos span {{ 
-        color: #FFFFFF !important; 
+    /* 4. TARJETAS (TEXTO BLANCO DENTRO) */
+    .tarjeta-capigastos *, .tarjeta-capigastos div {{ 
+        color: white !important; 
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
     }}
-    
-    /* 5. Excepciones: Botones (Blancos o Negros según diseño) */
-    div.stButton > button {{
-        color: #FFFFFF !important;
-    }}
-    div.stButton > button p {{
-        color: #FFFFFF !important;
-    }}
-    /* Texto negro para botones específicos si es necesario */
-    div.stButton > button:has(p:contains('Agregar')) p,
-    div.stButton > button:has(p:contains('Eliminar')) p {{
-        color: #000000 !important;
-    }}
 
-    /* 6. INPUTS (Cajas de texto) */
+    /* 5. INPUTS (CAJAS BLANCAS) */
     .stTextInput input, .stNumberInput input, div[data-baseweb="select"] > div {{
-        background-color: #F0F0F0 !important; /* Gris muy claro */
+        background-color: #FFFFFF !important;
         color: #000000 !important;
-        border: 1px solid #8B4513 !important;
+        border: 2px solid #8B4513 !important;
     }}
 
-    /* 7. TARJETAS VISUALES */
+    /* 6. BOTONES ESTILO PASTILLA (RECREADOS CON CSS PARA QUE NO DESAPAREZCAN) */
+    
+    /* Botón AGREGAR (Verde) */
+    div.stButton > button:has(p:contains('Agregar')) {{
+        background-color: #A2D149 !important; /* Verde Manzana */
+        color: #2F4F4F !important; /* Letra oscura */
+        border: 3px solid #556B2F !important; /* Borde Verde Oscuro */
+        border-radius: 50px !important;
+        font-weight: 900 !important;
+        font-size: 18px !important;
+        padding: 10px !important;
+        box-shadow: 0 4px 0 #556B2F !important; /* Efecto 3D */
+    }}
+    div.stButton > button:has(p:contains('Agregar')):active {{
+        box-shadow: none !important;
+        transform: translateY(4px) !important;
+    }}
+
+    /* Botón ELIMINAR (Rojo) */
+    div.stButton > button:has(p:contains('Eliminar')) {{
+        background-color: #FA8072 !important; /* Rojo Salmón */
+        color: #581818 !important; /* Letra oscura */
+        border: 3px solid #8B0000 !important; /* Borde Rojo Oscuro */
+        border-radius: 50px !important;
+        font-weight: 900 !important;
+        font-size: 18px !important;
+        padding: 10px !important;
+        box-shadow: 0 4px 0 #8B0000 !important;
+    }}
+    div.stButton > button:has(p:contains('Eliminar')):active {{
+        box-shadow: none !important;
+        transform: translateY(4px) !important;
+    }}
+    
+    /* Botón GUARDAR (Marrón) */
+    div.stButton > button:has(p:contains('GUARDAR')) {{
+        background-color: #8B4513 !important;
+        color: white !important;
+        border: 2px solid #5e2f0d !important;
+        border-radius: 20px !important;
+    }}
+
+    /* 7. TARJETA VISUAL */
     .tarjeta-capigastos {{
-        background-color: #8B4513; /* Respaldo si falla imagen */
+        background-color: #8B4513;
         border-radius: 15px; padding: 15px; margin-bottom: 10px;
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3); position: relative; height: 180px;
         background-size: 100% 100%; background-position: center;
     }}
     .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 6px; width: 100%; margin-top: 5px; }}
     .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
-
-    /* 8. BOTONES IMAGEN */
-    div.stButton > button[title="AGREGAR_IMG"] {{
-        background-image: url("data:image/png;base64,{img_btn_add}");
-        background-size: 100% 100%; border: none !important; background-color: transparent !important;
-        height: 45px; width: 100%;
-    }}
-    div.stButton > button[title="ELIMINAR_IMG"] {{
-        background-image: url("data:image/png;base64,{img_btn_del}");
-        background-size: 100% 100%; border: none !important; background-color: transparent !important;
-        height: 45px; width: 100%;
-    }}
-    /* Botón Genérico */
-    div.stButton > button:not([title]) {{
-        background-color: #8B4513 !important; border-radius: 20px; border: 2px solid #5e2f0d;
-    }}
 
 </style>
 """, unsafe_allow_html=True)
@@ -223,7 +234,7 @@ if not df.empty:
 # ==============================================================================
 # 1. HEADER (LOGO | SELECCION MES | TOTALES)
 # ==============================================================================
-with st.container(border=True): # ESTA CAJA SERÁ BLANCA SÓLIDA
+with st.container(border=True): # ESTA CAJA SERÁ BEIGE SÓLIDA
     c1, c2, c3 = st.columns([1.5, 1.5, 1.5], vertical_alignment="center")
     with c1:
         cc1, cc2 = st.columns([1, 3])
@@ -251,7 +262,7 @@ ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
 gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
 bal_m = ing_m - gas_m
 
-with st.container(border=True): # CAJA BLANCA SÓLIDA
+with st.container(border=True): # CAJA BEIGE SÓLIDA
     st.markdown(f"<h4 style='text-align:center; margin:0;'>CONSOLIDADO: {sel_mes.upper()} {sel_anio}</h4>", unsafe_allow_html=True)
     k1, k2, k3 = st.columns(3)
     k1.metric("Ingresos", f"S/ {ing_m:,.2f}")
@@ -267,7 +278,7 @@ col_izq, col_der = st.columns([1, 1.8], gap="medium")
 
 # --- IZQUIERDA ---
 with col_izq:
-    with st.container(border=True): # CAJA BLANCA SÓLIDA
+    with st.container(border=True): # CAJA BEIGE SÓLIDA
         st.markdown("### 📝 FORMULARIO")
         st.write("**Registrar:**")
         op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True, label_visibility="collapsed")
@@ -286,29 +297,18 @@ with col_izq:
             monto = st.number_input("Monto S/", min_value=0.01, format="%.2f")
             desc = st.text_input("Descripción")
             st.write("")
-            if st.form_submit_button("GUARDAR", use_container_width=True):
-                try:
-                    now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
-                    time_str = datetime.now(zona_peru).strftime("%H:%M:%S")
-                    if op == "Transferencia":
-                        r1 = [now_str, time_str, u, c_ori, "Gasto", "Transferencia/Salida", monto, f"-> {c_des}: {desc}"]
-                        r2 = [now_str, time_str, u, c_des, "Ingreso", "Transferencia/Entrada", monto, f"<- {c_ori}: {desc}"]
-                        ws_registro.append_row(r1); ws_registro.append_row(r2)
-                    else:
-                        tipo = "Gasto" if "Gasto" in op else "Ingreso"
-                        ws_registro.append_row([now_str, time_str, u, cta, tipo, cat, monto, desc])
-                    limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
+            st.form_submit_button("GUARDAR", use_container_width=True)
 
 # --- DERECHA ---
 with col_der:
     # CUENTAS
-    with st.container(border=True): # CAJA BLANCA SÓLIDA
+    with st.container(border=True): # CAJA BEIGE SÓLIDA
         ch1, ch2, ch3 = st.columns([4, 1, 1], vertical_alignment="bottom")
         ch1.markdown("### 💳 CUENTAS")
-        # Botones Imagen
-        if ch2.button(" ", key="add", help="AGREGAR_IMG"): dialog_agregar_cuenta()
-        if ch3.button(" ", key="del", help="ELIMINAR_IMG"): dialog_eliminar_cuenta(lista_cuentas)
+        
+        # BOTONES CSS (SIEMPRE VISIBLES)
+        if ch2.button("Agregar", key="add", use_container_width=True): dialog_agregar_cuenta()
+        if ch3.button("Eliminar", key="del", use_container_width=True): dialog_eliminar_cuenta(lista_cuentas)
         
         cols_tarjetas = st.columns(3)
         for i, cuenta in enumerate(lista_cuentas):
@@ -341,7 +341,7 @@ with col_der:
     st.write("")
 
     # METAS
-    with st.container(border=True): # CAJA BLANCA SÓLIDA
+    with st.container(border=True): # CAJA BEIGE SÓLIDA
         st.markdown("### 🎯 METAS")
         if not df_f.empty: gas_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
         else: gas_cat = {}
@@ -364,7 +364,7 @@ st.write("")
 col_foot_left, col_foot_right = st.columns([1.5, 1], gap="medium")
 
 with col_foot_left:
-    with st.container(border=True): # CAJA BLANCA SÓLIDA
+    with st.container(border=True): # CAJA BEIGE SÓLIDA
         st.markdown("### 📜 MOVIMIENTOS")
         if not df_f.empty:
             st.dataframe(
@@ -377,7 +377,7 @@ with col_foot_left:
         else: st.info("Sin datos este mes.")
 
 with col_foot_right:
-    with st.container(border=True): # CAJA BLANCA SÓLIDA
+    with st.container(border=True): # CAJA BEIGE SÓLIDA
         st.markdown("### ⏰ PAGOS PENDIENTES")
         st.info("Próximos vencimientos:")
         st.markdown("- 📅 **Luz del Sur:** 15/Feb (S/ 120.00)\n- 📅 **Internet:** 20/Feb (S/ 89.00)")
