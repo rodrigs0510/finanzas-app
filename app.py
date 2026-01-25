@@ -85,9 +85,10 @@ def limpiar_cache():
     st.cache_data.clear()
 
 # --- VENTANAS EMERGENTES (DIALOGS) ---
-@st.dialog("➕ Agregar Nueva Cuenta")
+@st.dialog("Agregar Nueva Cuenta")
 def dialog_agregar_cuenta():
     nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
+    # Este botón se pintará de verde por el CSS
     if st.button("Crear Cuenta"):
         if nombre_cuenta:
             ws_cuentas.append_row([nombre_cuenta])
@@ -98,14 +99,14 @@ def dialog_agregar_cuenta():
         else:
             st.warning("Escribe un nombre primero.")
 
-@st.dialog("🗑️ Eliminar Cuenta")
+@st.dialog("Eliminar Cuenta")
 def dialog_eliminar_cuenta(lista_actual):
     cuenta_a_borrar = st.selectbox("Selecciona la cuenta a eliminar:", lista_actual)
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
-    # Usamos type="primary" para que este botón resalte más
-    if col_d1.button("Sí, Eliminar", type="primary"):
+    # Este botón se pintará de rojo por el CSS
+    if col_d1.button("Sí, Eliminar"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
             ws_cuentas.delete_rows(cell.row)
@@ -207,56 +208,63 @@ c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1])
 with c_titulo_cta:
     st.subheader("CUENTAS")
 with c_btn_add:
-    # Agregamos iconos a los botones
-    if st.button("➕ Agregar", use_container_width=True):
+    # SIN EMOJIS, CSS SE ENCARGA DEL COLOR
+    if st.button("Agregar Cuenta", use_container_width=True):
         dialog_agregar_cuenta()
 with c_btn_del:
-    if st.button("🗑️ Eliminar", use_container_width=True):
+    # SIN EMOJIS, CSS SE ENCARGA DEL COLOR
+    if st.button("Eliminar Cuenta", use_container_width=True):
         dialog_eliminar_cuenta(lista_cuentas)
 
-# --- CSS PERSONALIZADO (TARJETAS Y BOTONES) ---
+# --- CSS PERSONALIZADO (COLORES Y TARJETAS) ---
 st.markdown("""
 <style>
-    /* ESTILOS PARA BOTONES PERSONALIZADOS (NUEVO) */
-    /* Apuntamos a todos los botones de Streamlit */
+    /* --- ESTILOS BASE PARA TODOS LOS BOTONES (MARRÓN CAPIGASTOS) --- */
     div.stButton > button {
-        background-color: #8B4513; /* Marrón cálido tipo capibara */
+        background-color: #8B4513; /* Marrón base */
         color: white;
-        border: none;
-        border-radius: 25px; /* Bordes muy redondos */
+        border: 2px solid #5e2f0d;
+        border-radius: 25px; /* Muy redondos */
         padding: 10px 24px;
         font-weight: bold;
-        font-size: 16px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); /* Sombra suave */
-        transition: all 0.3s ease; /* Transición suave al pasar el mouse */
-        border: 2px solid #5e2f0d; /* Un bordecito más oscuro para definir */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        transition: all 0.3s ease;
     }
-
-    /* Efecto al pasar el mouse (Hover) */
     div.stButton > button:hover {
-        background-color: #A0522D; /* Un marrón un poco más claro */
-        transform: translateY(-3px); /* Se mueve hacia arriba */
-        box-shadow: 0 7px 10px rgba(0,0,0,0.4); /* Sombra más grande */
-        color: #FFD700; /* Texto dorado */
+        background-color: #A0522D;
+        transform: translateY(-3px);
+        box-shadow: 0 7px 10px rgba(0,0,0,0.4);
+        color: #FFD700; /* Texto dorado al pasar mouse */
+    }
+    div.stButton > button:active { transform: translateY(1px); box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+    /* --- REGLAS ESPECIALES PARA BOTONES VERDES (AGREGAR/CREAR) --- */
+    div.stButton > button:has(div p:contains('Agregar')),
+    div.stButton > button:has(div p:contains('Crear')) {
+        background-color: #28a745 !important; /* Verde */
+        border-color: #1e7e34 !important;
+    }
+    div.stButton > button:has(div p:contains('Agregar')):hover,
+    div.stButton > button:has(div p:contains('Crear')):hover {
+        background-color: #218838 !important;
+        color: white !important;
     }
 
-    /* Efecto al hacer clic (Active) */
-    div.stButton > button:active {
-        transform: translateY(1px); /* Efecto de presionar */
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    /* --- REGLAS ESPECIALES PARA BOTONES ROJOS (ELIMINAR/BORRAR) --- */
+    div.stButton > button:has(div p:contains('Eliminar')),
+    div.stButton > button:has(div p:contains('Sí, Eliminar')),
+    div.stButton > button:has(div p:contains('BORRAR')) {
+         background-color: #dc3545 !important; /* Rojo */
+         border-color: #bd2130 !important;
     }
-    
-    /* Botón primario (Ej: Sí, Eliminar) un poco diferente */
-    div.stButton > button[data-testid="baseButton-primary"] {
-         background-color: #d9534f; /* Rojo para acciones de cuidado */
-         border-color: #c9302c;
-    }
-    div.stButton > button[data-testid="baseButton-primary"]:hover {
-         background-color: #c9302c;
+    div.stButton > button:has(div p:contains('Eliminar')):hover,
+    div.stButton > button:has(div p:contains('Sí, Eliminar')):hover,
+    div.stButton > button:has(div p:contains('BORRAR')):hover {
+         background-color: #c82333 !important;
+         color: white !important;
     }
 
-
-    /* ESTILOS TARJETA (YA EXISTÍAN) */
+    /* ESTILOS TARJETA */
     .tarjeta-capigastos {
         border-radius: 15px;
         padding: 20px;
@@ -268,7 +276,7 @@ st.markdown("""
         background-size: 100% 100%; 
         background-position: center;
     }
-    .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.9); }
+    .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
     .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
     .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
 </style>
@@ -292,7 +300,6 @@ for cuenta in lista_cuentas:
 
     bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
 
-    # HTML SIN INDENTACIÓN
     html = f"""
 <div class="tarjeta-capigastos" style="{bg}">
 <div style="position: absolute; top: 20px; left: 20px;">
@@ -394,6 +401,7 @@ with st.form("op_form", clear_on_submit=True):
 with st.expander("Borrar Último"):
     if not df.empty:
         st.dataframe(df.sort_values("Fecha", ascending=False).head(3), use_container_width=True)
+        # Este botón se pintará de rojo por el CSS
         if st.button("BORRAR"):
             try:
                 rows = len(ws_registro.get_all_values())
