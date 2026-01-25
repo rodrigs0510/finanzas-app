@@ -104,6 +104,7 @@ def dialog_eliminar_cuenta(lista_actual):
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
+    # Usamos type="primary" para que este botón resalte más
     if col_d1.button("Sí, Eliminar", type="primary"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
@@ -200,21 +201,62 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # ==========================================
-# 2. CUENTAS (CON BOTONES DE GESTIÓN) 💳
+# 2. CUENTAS (CON BOTONES DE GESTIÓN ESTILIZADOS) 💳
 # ==========================================
-# Aquí ponemos el título y los botones en la misma fila
 c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1])
 with c_titulo_cta:
     st.subheader("CUENTAS")
 with c_btn_add:
+    # Agregamos iconos a los botones
     if st.button("➕ Agregar", use_container_width=True):
         dialog_agregar_cuenta()
 with c_btn_del:
     if st.button("🗑️ Eliminar", use_container_width=True):
         dialog_eliminar_cuenta(lista_cuentas)
 
+# --- CSS PERSONALIZADO (TARJETAS Y BOTONES) ---
 st.markdown("""
 <style>
+    /* ESTILOS PARA BOTONES PERSONALIZADOS (NUEVO) */
+    /* Apuntamos a todos los botones de Streamlit */
+    div.stButton > button {
+        background-color: #8B4513; /* Marrón cálido tipo capibara */
+        color: white;
+        border: none;
+        border-radius: 25px; /* Bordes muy redondos */
+        padding: 10px 24px;
+        font-weight: bold;
+        font-size: 16px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3); /* Sombra suave */
+        transition: all 0.3s ease; /* Transición suave al pasar el mouse */
+        border: 2px solid #5e2f0d; /* Un bordecito más oscuro para definir */
+    }
+
+    /* Efecto al pasar el mouse (Hover) */
+    div.stButton > button:hover {
+        background-color: #A0522D; /* Un marrón un poco más claro */
+        transform: translateY(-3px); /* Se mueve hacia arriba */
+        box-shadow: 0 7px 10px rgba(0,0,0,0.4); /* Sombra más grande */
+        color: #FFD700; /* Texto dorado */
+    }
+
+    /* Efecto al hacer clic (Active) */
+    div.stButton > button:active {
+        transform: translateY(1px); /* Efecto de presionar */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    /* Botón primario (Ej: Sí, Eliminar) un poco diferente */
+    div.stButton > button[data-testid="baseButton-primary"] {
+         background-color: #d9534f; /* Rojo para acciones de cuidado */
+         border-color: #c9302c;
+    }
+    div.stButton > button[data-testid="baseButton-primary"]:hover {
+         background-color: #c9302c;
+    }
+
+
+    /* ESTILOS TARJETA (YA EXISTÍAN) */
     .tarjeta-capigastos {
         border-radius: 15px;
         padding: 20px;
@@ -223,10 +265,10 @@ st.markdown("""
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3);
         position: relative;
         height: 220px;
-        background-size: cover; 
+        background-size: 100% 100%; 
         background-position: center;
     }
-    .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+    .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.9); }
     .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
     .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
 </style>
@@ -250,7 +292,7 @@ for cuenta in lista_cuentas:
 
     bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
 
-    # HTML SIN INDENTACIÓN (Fix visual)
+    # HTML SIN INDENTACIÓN
     html = f"""
 <div class="tarjeta-capigastos" style="{bg}">
 <div style="position: absolute; top: 20px; left: 20px;">
