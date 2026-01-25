@@ -1,14 +1,22 @@
 import streamlit as st
 
+
 def render_header():
     st.markdown('<div class="bloque-capibara">', unsafe_allow_html=True)
 
     col_logo, col_filtros, col_kpi = st.columns([1.2, 2.5, 2.3])
 
     # LOGO
-    with col_logo:
-        st.image("assets/images/logo.png", width=180)
+ col_logo, col_title = st.columns([1, 4])
 
+with col_logo:
+    st.image("assets/images/logo.png", width=150)
+
+with col_title:
+    st.markdown(
+        "<h1 style='color: white; margin-top: 20px;'>Capigastos</h1>",
+        unsafe_allow_html=True
+    )
     # FILTROS
     with col_filtros:
         st.markdown("#### USUARIO")
@@ -56,3 +64,4 @@ def render_header():
         """, unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
+
