@@ -5,9 +5,24 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
 import pytz 
+import base64
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
+
+# --- FUNCIÓN PARA CARGAR IMÁGENES (NUEVO) ---
+def get_image_as_base64(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except Exception:
+        return None
+
+# Cargamos la imagen de la tarjeta en memoria
+img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
+# Si tienes el logo, cárgalo aquí también
+img_logo = get_image_as_base64("logo.png") 
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -97,13 +112,11 @@ with st.sidebar:
 
 # --- HEADER CON LOGO ---
 col_logo, col_titulo = st.columns([1, 4]) 
-
 with col_logo:
-    try:
-        st.image("logo.png", width=100) 
-    except:
+    if img_logo:
+        st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="80">', unsafe_allow_html=True)
+    else:
         st.write("🐹") 
-
 with col_titulo:
     st.title("CAPIGASTOS")
 
@@ -129,7 +142,6 @@ if not df.empty:
     total_gastos_historico = df[df['Tipo'] == 'Gasto']['Monto'].sum()
     ahorro_total_historico = total_ingresos_historico - total_gastos_historico
     
-    # Calculamos saldo total simple para el KPI de arriba
     for c in lista_cuentas:
         i = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
         g = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
@@ -138,12 +150,11 @@ else:
     ahorro_total_historico = 0
     saldo_cuentas_total = 0
 
-# --- VISUALIZACIÓN: ESTADO GLOBAL ---
+# --- ESTADO GLOBAL ---
 st.subheader("Estado Global (Histórico)")
 col_g1, col_g2 = st.columns(2)
 col_g1.metric("Saldo Total Disponible", f"S/ {saldo_cuentas_total:.2f}")
-col_g2.metric("Ahorro Total Acumulado", f"S/ {ahorro_total_historico:.2f}", 
-              delta="Total Histórico")
+col_g2.metric("Ahorro Total Acumulado", f"S/ {ahorro_total_historico:.2f}", delta="Total Histórico")
 
 st.divider()
 
@@ -180,45 +191,102 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 
 st.divider()
 
-# 2. CUENTAS (LOGICA CORREGIDA: BARRA = SALDO / INGRESOS TOTALES DE ESA CUENTA)
+# ==========================================
+# 2. CUENTAS (DISEÑO TARJETA CAPIGASTOS) 💳
+# ==========================================
 st.subheader("CUENTAS")
-cols_c = st.columns(3)
+
+# Estilos CSS personalizados para la tarjeta
+st.markdown("""
+<style>
+    .tarjeta-capigastos {
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+        position: relative;
+        height: 200px;
+        background-size: cover; 
+        background-position: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .texto-sombra {
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
+    .barra-fondo {
+        background-color: rgba(255, 255, 255, 0.3);
+        border-radius: 5px;
+        height: 10px;
+        width: 100%;
+        margin-top: 5px;
+    }
+    .barra-progreso {
+        background-color: #4CAF50; /* Verde */
+        height: 100%;
+        border-radius: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+cols_c = st.columns(2) # Mostramos 2 tarjetas por fila para que se vean grandes
 idx_c = 0
 
 for cuenta in lista_cuentas:
-    # Filtramos SOLO los movimientos de ESTA cuenta (Histórico completo)
+    # Cálculos por cuenta
     if not df.empty:
-        ingresos_cuenta = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-        gastos_cuenta = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldo_cuenta = ingresos_cuenta - gastos_cuenta
+        ingresos_historicos = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+        gastos_historicos = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+        saldo_disponible = ingresos_historicos - gastos_historicos
     else:
-        ingresos_cuenta, gastos_cuenta, saldo_cuenta = 0, 0, 0
+        ingresos_historicos, gastos_historicos, saldo_disponible = 0, 0, 0
 
-    with cols_c[idx_c % 3]:
-        with st.container(border=True):
-            st.write(f"**{cuenta}**")
+    # Cálculo porcentaje
+    if ingresos_historicos > 0:
+        pct = min(max(saldo_disponible / ingresos_historicos, 0.0), 1.0) * 100
+    else:
+        pct = 0
+
+    # Imagen de fondo en CSS (Si no hay imagen, usa un color marrón por defecto)
+    bg_style = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
+
+    # Generamos el HTML de la tarjeta
+    html_tarjeta = f"""
+    <div class="tarjeta-capigastos" style="{bg_style}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h3 class="texto-sombra" style="margin: 0; color: white;">{cuenta}</h3>
+                <small class="texto-sombra" style="opacity: 0.9;">Capigastos Card</small>
+            </div>
             
-            if saldo_cuenta >= 0:
-                st.metric("Saldo", f"S/ {saldo_cuenta:.2f}")
-                
-                # CÁLCULO DE LA BARRA DE ESTADO
-                # Si han ingresado 100 soles a la cuenta en su historia, ese es el 100%
-                # Si gastas 50, te quedan 50 -> Barra al 50%
-                if ingresos_cuenta > 0:
-                    porcentaje = saldo_cuenta / ingresos_cuenta
-                    # Aseguramos que esté entre 0 y 1 para que no de error
-                    porcentaje_barra = min(max(porcentaje, 0.0), 1.0)
-                else:
-                    porcentaje_barra = 0.0
-                
-                st.progress(porcentaje_barra)
-                # Texto explicativo pequeño
-                st.caption(f"Queda: {porcentaje_barra*100:.0f}% de lo ingresado")
-                
-            else:
-                st.metric("Saldo", f"S/ {saldo_cuenta:.2f}", delta="En Rojo", delta_color="inverse")
-                st.error("¡Cuenta sobregirada!")
-                
+            <div style="text-align: right;">
+                <small class="texto-sombra">Saldo Disponible</small>
+                <h2 class="texto-sombra" style="margin: 0; color: white;">S/ {saldo_disponible:,.2f}</h2>
+            </div>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <span class="texto-sombra" style="font-size: 12px; margin-right: 15px;">⬇ Ingresos Totales: S/ {ingresos_historicos:,.2f}</span>
+            <span class="texto-sombra" style="font-size: 12px; color: #ffcccb;">⬆ Gastado: S/ {gastos_historicos:,.2f}</span>
+        </div>
+
+        <div style="margin-top: auto;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px;" class="texto-sombra">
+                <span>Estado de Cuenta</span>
+                <span>{pct:.0f}%</span>
+            </div>
+            <div class="barra-fondo">
+                <div class="barra-progreso" style="width: {pct}%;"></div>
+            </div>
+        </div>
+    </div>
+    """
+
+    with cols_c[idx_c % 2]:
+        st.markdown(html_tarjeta, unsafe_allow_html=True)
+    
     idx_c += 1
 
 st.divider()
