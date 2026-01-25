@@ -1,17 +1,18 @@
 import streamlit as st
 
-
 def render_dashboard():
-    st.markdown('<div class="bloque-capigastos">', unsafe_allow_html=True)
+    st.markdown("### Dashboard")
 
-    st.markdown(
-        "<h2 style='color:#2B1E14;'>Dashboard</h2>",
-        unsafe_allow_html=True
-    )
+    col1, col2 = st.columns(2)
 
-    st.markdown(
-        "Aquí irá el resumen general de tus gastos, gráficos y totales.",
-        unsafe_allow_html=True
-    )
+    with col1:
+        st.metric(
+            label="Saldo total",
+            value="S/. 2,500"
+        )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col2:
+        st.metric(
+            label="Ahorro total",
+            value="S/. 800"
+        )
