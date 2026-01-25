@@ -6,6 +6,7 @@ from datetime import datetime
 import time
 import pytz 
 import base64
+import math
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
@@ -84,7 +85,7 @@ def obtener_presupuestos():
 def limpiar_cache():
     st.cache_data.clear()
 
-# --- VENTANAS EMERGENTES (DIALOGS) ---
+# --- VENTANAS EMERGENTES ---
 @st.dialog("Agregar Nueva Cuenta")
 def dialog_agregar_cuenta():
     nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
@@ -128,7 +129,7 @@ with col_logo:
 with col_titulo:
     st.title("CAPIGASTOS")
 
-# ZONA HORARIA PERÚ
+# ZONA HORARIA
 zona_peru = pytz.timezone('America/Lima')
 
 try:
@@ -199,66 +200,64 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 
 st.divider()
 
-# ==========================================
-# 2. CUENTAS (CON BOTONES PERSONALIZADOS) 💳
-# ==========================================
+# =========================================================
+# 2. CUENTAS (CARRUSEL HORIZONTAL + BOTONES COLOREADOS) 💳
+# =========================================================
 c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1])
 with c_titulo_cta:
     st.subheader("CUENTAS")
 with c_btn_add:
-    # SIN EMOJIS, TEXTO SIMPLE
-    if st.button("Agregar", key="btn_agregar", use_container_width=True):
+    if st.button("Agregar", key="btn_add_main", use_container_width=True):
         dialog_agregar_cuenta()
 with c_btn_del:
-    # SIN EMOJIS, TEXTO SIMPLE
-    if st.button("Eliminar", key="btn_eliminar", use_container_width=True):
+    if st.button("Eliminar", key="btn_del_main", use_container_width=True):
         dialog_eliminar_cuenta(lista_cuentas)
 
-# --- CSS PERSONALIZADO (COLORES EXACTOS Y FORMA) ---
+# --- CSS MEJORADO: COLORES EXACTOS ---
 st.markdown("""
 <style>
-    /* ESTILOS BASE PARA BOTONES NORMALES (Guardar, etc) */
+    /* Estilos Generales para botones Marrones (por defecto) */
     div.stButton > button {
         background-color: #8B4513; 
         color: white;
         border: 2px solid #5e2f0d;
-        border-radius: 20px; /* Redondeado, pero no círculo */
-        padding: 5px 20px;   /* MÁS DELGADOS (Menos relleno vertical) */
+        border-radius: 20px;
+        padding: 5px 20px;
         font-weight: bold;
         box-shadow: 0 3px 5px rgba(0,0,0,0.3);
     }
 
-    /* --- BOTÓN AGREGAR (VERDE) --- */
-    div.stButton > button:has(div p:contains('Agregar')) {
-        background-color: #A2D149 !important; /* Verde hoja suave (tipo tu imagen) */
-        border: 2px solid #556B2F !important; /* Borde verde oscuro */
-        color: #3E2723 !important; /* Texto café oscuro */
-        border-radius: 50px !important; /* Forma pastilla */
+    /* === BOTÓN AGREGAR (VERDE) === */
+    /* Apuntamos al botón específico usando atributos ARIA o Texto */
+    div.stButton > button:has(div p:contains('Agregar')), 
+    div.stButton > button:has(p:contains('Agregar')) {
+        background-color: #9ACD32 !important; /* Verde hoja */
+        border: 2px solid #556B2F !important;
+        color: #2F4F4F !important; /* Letra oscura */
     }
     div.stButton > button:has(div p:contains('Agregar')):hover {
-        background-color: #b0e050 !important;
+        background-color: #ADFF2F !important;
         transform: translateY(-2px);
     }
 
-    /* --- BOTÓN ELIMINAR (ROJO) --- */
-    div.stButton > button:has(div p:contains('Eliminar')),
-    div.stButton > button:has(div p:contains('Sí, Eliminar')) {
-         background-color: #EA6B66 !important; /* Rojo salmón suave (tipo tu imagen) */
-         border: 2px solid #8B0000 !important; /* Borde rojo oscuro */
-         color: #3E2723 !important; /* Texto café oscuro */
-         border-radius: 50px !important; /* Forma pastilla */
+    /* === BOTÓN ELIMINAR (ROJO) === */
+    div.stButton > button:has(div p:contains('Eliminar')), 
+    div.stButton > button:has(p:contains('Eliminar')) {
+        background-color: #FA8072 !important; /* Salmón / Rojo suave */
+        border: 2px solid #B22222 !important;
+        color: #800000 !important; /* Letra oscura */
     }
     div.stButton > button:has(div p:contains('Eliminar')):hover {
-         background-color: #f77c77 !important;
-         transform: translateY(-2px);
+        background-color: #FF6347 !important;
+        transform: translateY(-2px);
     }
 
-    /* ESTILOS TARJETA */
+    /* Estilos Tarjeta */
     .tarjeta-capigastos {
         border-radius: 15px;
         padding: 20px;
         color: white;
-        margin-bottom: 15px;
+        margin-bottom: 10px; /* Reducido margen */
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3);
         position: relative;
         height: 220px;
@@ -271,48 +270,83 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-cols_c = st.columns(2)
-idx_c = 0
+# --- LÓGICA DE CARRUSEL (PAGINACIÓN) ---
+TARJETAS_POR_PAGINA = 2  # Mostramos 2 tarjetas para que se vean bien
 
-for cuenta in lista_cuentas:
-    if not df.empty:
-        ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-        gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldo_d = ingresos_h - gastos_h
-    else:
-        ingresos_h, gastos_h, saldo_d = 0, 0, 0
+# Inicializar estado de página
+if 'pagina_cuentas' not in st.session_state:
+    st.session_state.pagina_cuentas = 0
 
-    if ingresos_h > 0:
-        pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100
-    else:
-        pct = 0
+total_cuentas = len(lista_cuentas)
+total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
 
-    bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
+# Contenedor del Carrusel
+col_nav_izq, col_tarjetas, col_nav_der = st.columns([0.5, 8, 0.5])
 
-    html = f"""
-<div class="tarjeta-capigastos" style="{bg}">
-<div style="position: absolute; top: 20px; left: 20px;">
-<div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
-<div class="texto-sombra" style="font-size: 20px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
-</div>
-<div style="position: absolute; top: 75px; right: 20px; text-align: right;">
-<div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
-<div class="texto-sombra" style="font-size: 28px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
-</div>
-<div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
-<div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
-<span>⬇ Ingresos: {ingresos_h:,.0f}</span>
-<span style="color: #ffcccb;">⬆ Gastos: {gastos_h:,.0f}</span>
-</div>
-<div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
-<div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Restante</div>
-</div>
-</div>
-"""
-    with cols_c[idx_c % 2]:
-        st.markdown(html, unsafe_allow_html=True)
+# Botón Anterior
+with col_nav_izq:
+    st.write("") # Espacio para centrar verticalmente (aprox)
+    st.write("")
+    st.write("")
+    if st.button("◀", key="prev_page"):
+        if st.session_state.pagina_cuentas > 0:
+            st.session_state.pagina_cuentas -= 1
+            st.rerun()
+
+# Botón Siguiente
+with col_nav_der:
+    st.write("")
+    st.write("")
+    st.write("")
+    if st.button("▶", key="next_page"):
+        if st.session_state.pagina_cuentas < total_paginas - 1:
+            st.session_state.pagina_cuentas += 1
+            st.rerun()
+
+# Mostrar Tarjetas de la Página Actual
+with col_tarjetas:
+    start_idx = st.session_state.pagina_cuentas * TARJETAS_POR_PAGINA
+    end_idx = start_idx + TARJETAS_POR_PAGINA
+    cuentas_pagina = lista_cuentas[start_idx:end_idx]
     
-    idx_c += 1
+    # Creamos columnas dinámicas para las tarjetas visibles
+    cols_display = st.columns(TARJETAS_POR_PAGINA)
+    
+    for i, cuenta in enumerate(cuentas_pagina):
+        # Lógica de saldo
+        if not df.empty:
+            ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+            gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+            saldo_d = ingresos_h - gastos_h
+        else:
+            ingresos_h, gastos_h, saldo_d = 0, 0, 0
+
+        pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100 if ingresos_h > 0 else 0
+        bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
+
+        html = f"""
+        <div class="tarjeta-capigastos" style="{bg}">
+            <div style="position: absolute; top: 20px; left: 20px;">
+                <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
+                <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
+            </div>
+            <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
+                <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
+                <div class="texto-sombra" style="font-size: 24px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
+            </div>
+            <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
+                    <span>⬇ Ing: {ingresos_h:,.0f}</span>
+                    <span style="color: #ffcccb;">⬆ Gas: {gastos_h:,.0f}</span>
+                </div>
+                <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
+                <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Disp.</div>
+            </div>
+        </div>
+        """
+        
+        with cols_display[i]:
+            st.markdown(html, unsafe_allow_html=True)
 
 st.divider()
 
