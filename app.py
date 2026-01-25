@@ -7,7 +7,7 @@ import time
 import pytz 
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="❤️")
+st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -73,7 +73,7 @@ def limpiar_cache():
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("Configuración") # Sin emojis raros
+    st.header("Configuración")
     with st.expander("Cuentas"):
         nueva = st.text_input("Nueva Cuenta")
         if st.button("Crear"):
@@ -95,19 +95,16 @@ with st.sidebar:
                 time.sleep(1)
                 st.rerun()
 
-# --- HEADER CON LOGO (AQUÍ ESTÁ EL CAMBIO) ---
-# Usamos columnas para poner Logo a la izquierda y Título a la derecha
-col_logo, col_titulo = st.columns([1, 4]) # 1 parte logo, 4 partes título
+# --- HEADER CON LOGO ---
+col_logo, col_titulo = st.columns([1, 4]) 
 
 with col_logo:
-    # Intenta cargar 'logo.png'. Si no existe, no falla.
     try:
         st.image("logo.png", width=100) 
     except:
-        st.write("🐹") # Placeholder si falta la imagen
+        st.write("🐹") 
 
 with col_titulo:
-    # TÍTULO LIMPIO (Sin emojis)
     st.title("CAPIGASTOS")
 
 # ZONA HORARIA PERÚ
@@ -122,7 +119,40 @@ except Exception:
     time.sleep(2)
     st.rerun()
 
-# Filtros Tiempo
+# --- CÁLCULOS GLOBALES (LO NUEVO) ---
+# Usamos el DataFrame completo (df) sin filtrar por mes para los totales históricos
+total_ingresos_historico = 0
+total_gastos_historico = 0
+saldo_cuentas_total = 0
+
+if not df.empty:
+    total_ingresos_historico = df[df['Tipo'] == 'Ingreso']['Monto'].sum()
+    total_gastos_historico = df[df['Tipo'] == 'Gasto']['Monto'].sum()
+    
+    # Saldo real calculado cuenta por cuenta
+    saldos = {}
+    for c in lista_cuentas:
+        i = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+        g = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+        saldos[c] = i - g
+    saldo_cuentas_total = sum(saldos.values())
+else:
+    saldos = {c: 0 for c in lista_cuentas}
+
+ahorro_total_historico = total_ingresos_historico - total_gastos_historico
+
+# --- VISUALIZACIÓN: ESTADO GLOBAL ---
+st.subheader("Estado Global (Histórico)")
+col_g1, col_g2 = st.columns(2)
+# Mostramos el dinero que tienen disponible HOY (Saldo Total)
+col_g1.metric("Saldo Total Disponible", f"S/ {saldo_cuentas_total:.2f}")
+# Mostramos el performance histórico (Ahorro Total)
+col_g2.metric("Ahorro Total Acumulado", f"S/ {ahorro_total_historico:.2f}", 
+              delta="Total Histórico")
+
+st.divider()
+
+# --- FILTROS DE TIEMPO ---
 with st.container(border=True):
     c1, c2 = st.columns(2)
     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
@@ -133,22 +163,11 @@ with st.container(border=True):
     anio = c2.number_input("Año", value=now.year, min_value=2024, max_value=2030)
     mes_idx = meses.index(mes_nom) + 1
 
-# Lógica Datos
+# Lógica Datos Filtrados
 if not df.empty and df['Fecha'].notna().any():
     df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == anio)]
 else:
     df_f = df
-
-# Saldos Globales
-saldos = {}
-for c in lista_cuentas:
-    if not df.empty:
-        i = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-        g = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldos[c] = i - g
-    else:
-        saldos[c] = 0
-total_cap = sum(saldos.values())
 
 # 1. Resumen Mes
 st.subheader(f"Resumen {mes_nom} {anio}")
@@ -160,14 +179,14 @@ else:
     ing_m, gas_m, bal_m = 0,0,0
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Ingresos", f"S/ {ing_m:.2f}")
-m2.metric("Gastos", f"S/ {gas_m:.2f}", delta_color="inverse")
-m3.metric("Ahorro", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" if ing_m>0 else None)
+m1.metric("Ingresos (Mes)", f"S/ {ing_m:.2f}")
+m2.metric("Gastos (Mes)", f"S/ {gas_m:.2f}", delta_color="inverse")
+m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" if ing_m>0 else None)
 
 st.divider()
 
 # 2. Cuentas
-st.subheader(f"Total Global: S/ {total_cap:.2f}")
+st.subheader(f"Detalle por Cuentas")
 cc = st.columns(3)
 ix = 0
 for c, s in saldos.items():
@@ -176,7 +195,7 @@ for c, s in saldos.items():
             st.write(f"**{c}**")
             if s >= 0:
                 st.metric("Saldo", f"S/ {s:.2f}")
-                st.progress(min((s/total_cap) if total_cap>0 else 0, 1.0))
+                st.progress(min((s/saldo_cuentas_total) if saldo_cuentas_total>0 else 0, 1.0))
             else:
                 st.metric("Deuda", f"S/ {s:.2f}", delta_color="inverse")
     ix += 1
@@ -205,7 +224,7 @@ st.divider()
 
 # 4. Registro
 st.subheader("Operación")
-op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True) # Sin emojis
+op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True)
 
 with st.form("op_form", clear_on_submit=True):
     fc1, fc2 = st.columns(2)
