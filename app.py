@@ -7,10 +7,10 @@ import time
 import pytz 
 import base64
 
-# --- 1. CONFIGURACIÓN (WIDE MODE ACTIVADO POR DEFECTO) ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(
     page_title="CAPIGASTOS", 
-    layout="wide",  # <--- ESTO SOLUCIONA QUE LAS TARJETAS SE VEAN APRETADAS
+    layout="wide",
     page_icon="🐹",
     initial_sidebar_state="collapsed"
 )
@@ -22,11 +22,11 @@ def get_image_as_base64(file_path):
             data = f.read()
         return base64.b64encode(data).decode()
     except Exception:
-        return None
+        return ""
 
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
-img_fondo = get_image_as_base64("fondo.jpg") # Asegúrate que este archivo exista
+img_fondo = get_image_as_base64("fondo.jpg") 
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -50,28 +50,22 @@ except Exception as e:
     st.error("Error conectando a Google. Espera 1 minuto y recarga.")
     st.stop()
 
-# --- FUNCIONES BLINDADAS ---
+# --- FUNCIONES ---
 def intento_seguro(funcion_gspread):
     max_retries = 3
     for i in range(max_retries):
         try:
             return funcion_gspread()
         except gspread.exceptions.APIError as e:
-            if i == max_retries - 1:
-                raise e
+            if i == max_retries - 1: raise e
             time.sleep(2 * (i + 1))
-        except Exception as e:
-            raise e
+        except Exception as e: raise e
 
 @st.cache_data(ttl=60)
 def obtener_datos():
     data = intento_seguro(lambda: ws_registro.get_all_records())
-    columnas = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
-    if not data:
-        df = pd.DataFrame(columns=columnas)
-    else:
-        df = pd.DataFrame(data)
-
+    if not data: return pd.DataFrame(columns=['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion'])
+    df = pd.DataFrame(data)
     df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
     df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
     return df
@@ -84,370 +78,272 @@ def obtener_cuentas():
 @st.cache_data(ttl=600)
 def obtener_presupuestos():
     records = intento_seguro(lambda: ws_presupuestos.get_all_records())
-    presupuestos = {row['Categoria']: row['Tope_Mensual'] for row in records}
-    return presupuestos
+    return {row['Categoria']: row['Tope_Mensual'] for row in records}
 
-def limpiar_cache():
-    st.cache_data.clear()
+def limpiar_cache(): st.cache_data.clear()
 
-# --- VENTANAS EMERGENTES ---
+# --- DIALOGS (POP-UPS) ---
 @st.dialog("Agregar Nueva Cuenta")
 def dialog_agregar_cuenta():
-    nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
+    nombre_cuenta = st.text_input("Nombre de la cuenta")
     if st.button("Crear Cuenta"):
         if nombre_cuenta:
             ws_cuentas.append_row([nombre_cuenta])
-            limpiar_cache()
-            st.success("¡Cuenta creada!")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.warning("Escribe un nombre primero.")
+            limpiar_cache(); st.success("¡Creada!"); time.sleep(1); st.rerun()
 
 @st.dialog("Eliminar Cuenta")
 def dialog_eliminar_cuenta(lista_actual):
-    cuenta_a_borrar = st.selectbox("Selecciona la cuenta a eliminar:", lista_actual)
-    st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
-    
-    col_d1, col_d2 = st.columns(2)
-    if col_d1.button("Sí, Eliminar"):
-        try:
-            cell = ws_cuentas.find(cuenta_a_borrar)
-            ws_cuentas.delete_rows(cell.row)
-            limpiar_cache()
-            st.success("Cuenta eliminada.")
-            time.sleep(1)
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error: {e}")
-    
-    if col_d2.button("Cancelar"):
-        st.rerun()
+    cuenta_a_borrar = st.selectbox("Selecciona cuenta:", lista_actual)
+    st.warning(f"¿Eliminar **{cuenta_a_borrar}**?")
+    c1, c2 = st.columns(2)
+    if c1.button("Sí, Eliminar"):
+        cell = ws_cuentas.find(cuenta_a_borrar)
+        ws_cuentas.delete_rows(cell.row)
+        limpiar_cache(); st.success("Eliminada"); time.sleep(1); st.rerun()
+    if c2.button("Cancelar"): st.rerun()
 
-# --- CSS MAESTRO (SOLUCIÓN DE VISUALIZACIÓN) ---
+# --- CSS MAESTRO ---
 st.markdown(f"""
 <style>
-    /* 1. FONDO DE PANTALLA (SIN ESTIRARSE) */
+    /* FONDO */
     .stApp {{
         background-image: url("data:image/jpg;base64,{img_fondo}");
-        background-size: cover; /* Mantiene proporción, recorta sobrante */
-        background-position: center top;
-        background-attachment: fixed;
+        background-size: cover; background-position: center top; background-attachment: fixed;
     }}
-
-    /* 2. CONTENEDOR TIPO "CRISTAL" (Para leer letras sobre fondo oscuro) */
+    /* CONTENEDOR CRISTAL */
     .block-container {{
-        background-color: rgba(253, 245, 230, 0.90); /* Beige Capibara Semitransparente */
-        border-radius: 15px;
-        padding: 3rem !important;
-        margin-top: 20px;
+        background-color: rgba(253, 245, 230, 0.92);
+        border-radius: 15px; padding: 2rem !important; margin-top: 20px;
         border: 2px solid #4A3B2A;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
     }}
-
-    /* 3. FORZAR COLOR DE TEXTO (CORRIGE MODO OSCURO) */
-    h1, h2, h3, p, span, label, .stMarkdown {{
-        color: #4A3B2A !important; /* Marrón oscuro siempre */
-        text-shadow: none !important;
+    /* TEXTOS */
+    h1, h2, h3, p, span, label, .stMarkdown, .stMetricLabel, div[data-testid="stMetricValue"] {{
+        color: #4A3B2A !important; text-shadow: none !important;
     }}
-    
-    /* 4. INPUTS Y SELECTORES (SIEMPRE CLAROS) */
+    /* INPUTS */
     .stTextInput input, .stNumberInput input, .stSelectbox div, div[data-baseweb="select"] {{
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 1px solid #4A3B2A !important;
+        background-color: #FFFFFF !important; color: #000000 !important; border: 1px solid #4A3B2A !important;
     }}
-    /* Color del texto dentro de los inputs */
-    .stTextInput input {{ color: black !important; }}
-
-    /* 5. ESTILOS DE BOTONES (PASTILLA) */
+    /* BOTONES */
     div.stButton > button {{
-        background-color: #8B4513;
-        color: white !important; /* Letra blanca en botones marrones */
-        border: 2px solid #5e2f0d;
-        border-radius: 50px;
-        padding: 5px 20px;
-        font-weight: bold;
-        box-shadow: 0 3px 5px rgba(0,0,0,0.3);
-        transition: all 0.2s;
+        background-color: #8B4513; color: white !important; border: 2px solid #5e2f0d;
+        border-radius: 50px; padding: 5px 20px; font-weight: bold; transition: all 0.2s;
     }}
-
     /* Botón AGREGAR (Verde) */
     div.stButton > button:has(p:contains('Agregar')) {{
-        background-color: #A2D149 !important;
-        border: 2px solid #556B2F !important;
-        color: black !important; /* Letra negra para contraste */
+        background-color: #A2D149 !important; border-color: #556B2F !important; color: black !important;
     }}
-    div.stButton > button:has(p:contains('Agregar')):hover {{
-        background-color: #b0e050 !important;
-        transform: scale(1.05);
-    }}
-
+    div.stButton > button:has(p:contains('Agregar')):hover {{ transform: scale(1.05); background-color: #b0e050 !important; }}
     /* Botón ELIMINAR (Rojo) */
-    div.stButton > button:has(p:contains('Eliminar')), 
-    div.stButton > button:has(div p:contains('Sí, Eliminar')) {{
-        background-color: #EA6B66 !important;
-        border: 2px solid #8B0000 !important;
-        color: black !important;
+    div.stButton > button:has(p:contains('Eliminar')), div.stButton > button:has(div p:contains('Sí, Eliminar')) {{
+        background-color: #EA6B66 !important; border-color: #8B0000 !important; color: black !important;
     }}
-    div.stButton > button:has(p:contains('Eliminar')):hover {{
-        background-color: #f77c77 !important;
-        transform: scale(1.05);
-    }}
-
-    /* 6. TARJETAS */
+    div.stButton > button:has(p:contains('Eliminar')):hover {{ transform: scale(1.05); background-color: #f77c77 !important; }}
+    
+    /* TARJETAS */
     @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
     .tarjeta-capigastos {{
-        animation: fadeIn 0.5s ease-out;
-        border-radius: 15px;
-        padding: 20px;
-        color: white !important; /* Texto blanco DENTRO de la tarjeta */
-        margin-bottom: 15px;
-        box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4);
-        position: relative;
-        height: 220px;
-        background-size: 100% 100%; 
-        background-position: center;
+        animation: fadeIn 0.5s ease-out; border-radius: 15px; padding: 20px; color: white !important;
+        margin-bottom: 15px; box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4); position: relative;
+        height: 220px; background-size: 100% 100%; background-position: center;
     }}
-    /* Excepción para texto dentro de tarjeta (debe ser blanco o claro) */
-    .tarjeta-capigastos h1, .tarjeta-capigastos h2, .tarjeta-capigastos h3, 
-    .tarjeta-capigastos p, .tarjeta-capigastos span, .tarjeta-capigastos div {{
-        color: white !important;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important;
-    }}
-    
+    .tarjeta-capigastos * {{ color: white !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important; }}
     .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }}
     .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
-
 </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
-col_logo, col_titulo = st.columns([1, 6]) 
-with col_logo:
-    if img_logo:
-        st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="120">', unsafe_allow_html=True)
-    else:
-        st.write("🐹") 
-with col_titulo:
-    # Usamos HTML directo para asegurar el estilo del título
-    st.markdown("<h1 style='font-size: 60px; margin-top: 20px;'>CAPIGASTOS</h1>", unsafe_allow_html=True)
-
-# ZONA HORARIA
+# --- LOGICA DE DATOS ---
 zona_peru = pytz.timezone('America/Lima')
-
 try:
     df = obtener_datos()
     lista_cuentas = obtener_cuentas()
     presupuestos_dict = obtener_presupuestos()
-except Exception:
-    st.warning("Cargando datos...")
-    time.sleep(2)
-    st.rerun()
+except:
+    st.warning("Cargando..."); time.sleep(1); st.rerun()
 
-# --- CÁLCULOS GLOBALES ---
-total_ingresos_historico = 0
-total_gastos_historico = 0
-saldo_cuentas_total = 0
+# Calculos Globales
+ing_hist = df[df['Tipo']=='Ingreso']['Monto'].sum() if not df.empty else 0
+gas_hist = df[df['Tipo']=='Gasto']['Monto'].sum() if not df.empty else 0
+ahorro_vida = ing_hist - gas_hist
+saldo_actual = 0
+for c in lista_cuentas:
+    if not df.empty:
+        i = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
+        g = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
+        saldo_actual += (i-g)
 
-if not df.empty:
-    total_ingresos_historico = df[df['Tipo'] == 'Ingreso']['Monto'].sum()
-    total_gastos_historico = df[df['Tipo'] == 'Gasto']['Monto'].sum()
-    ahorro_total_historico = total_ingresos_historico - total_gastos_historico
-    
-    for c in lista_cuentas:
-        i = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-        g = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-        saldo_cuentas_total += (i - g)
-else:
-    ahorro_total_historico = 0
-    saldo_cuentas_total = 0
+# ==============================================================================
+# FILA 1: HEADER SUPERIOR (LOGO + FILTROS + ESTADO GLOBAL)
+# ==============================================================================
+c_brand, c_filt, c_kpi1, c_kpi2 = st.columns([1.5, 1.5, 1.5, 1.5], vertical_alignment="center")
 
-# --- ESTADO GLOBAL ---
-st.subheader("Estado Global (Histórico)")
-col_g1, col_g2 = st.columns(2)
-col_g1.metric("Saldo Total Disponible", f"S/ {saldo_cuentas_total:.2f}")
-col_g2.metric("Ahorro Total Acumulado", f"S/ {ahorro_total_historico:.2f}", delta="Total Histórico")
+with c_brand:
+    col_img, col_txt = st.columns([1, 3])
+    with col_img:
+        if img_logo: st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="90">', unsafe_allow_html=True)
+        else: st.write("🐹")
+    with col_txt:
+        st.markdown("<h2 style='margin:0; padding:0;'>CAPIGASTOS</h2>", unsafe_allow_html=True)
 
-st.divider()
-
-# --- FILTROS DE TIEMPO ---
-with st.container(border=True):
-    c1, c2 = st.columns(2)
-    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    
+with c_filt:
+    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
     now = datetime.now(zona_peru)
-    mes_nom = c1.selectbox("Mes", meses, index=now.month-1)
-    anio = c2.number_input("Año", value=now.year, min_value=2024, max_value=2030)
-    mes_idx = meses.index(mes_nom) + 1
+    c_m, c_a = st.columns(2)
+    sel_mes = c_m.selectbox("Mes", meses, index=now.month-1, label_visibility="collapsed")
+    sel_anio = c_a.number_input("Año", value=now.year, label_visibility="collapsed")
+    mes_idx = meses.index(sel_mes) + 1
 
-# Lógica Datos Filtrados
-if not df.empty and df['Fecha'].notna().any():
-    df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == anio)]
-else:
-    df_f = df
+with c_kpi1:
+    st.metric("Saldo Total Disponible", f"S/ {saldo_actual:,.2f}")
 
-# 1. Resumen Mes
-st.subheader(f"Resumen {mes_nom} {anio}")
-if not df_f.empty:
-    ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
-    gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
-    bal_m = ing_m - gas_m
-else:
-    ing_m, gas_m, bal_m = 0,0,0
+with c_kpi2:
+    st.metric("Ahorro Histórico", f"S/ {ahorro_vida:,.2f}")
 
-m1, m2, m3 = st.columns(3)
-m1.metric("Ingresos (Mes)", f"S/ {ing_m:.2f}")
-m2.metric("Gastos (Mes)", f"S/ {gas_m:.2f}", delta_color="inverse")
-m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" if ing_m>0 else None)
+st.markdown("---")
 
-st.divider()
+# ==============================================================================
+# FILA 2: RESUMEN MENSUAL (CENTRADO)
+# ==============================================================================
+# Filtrado de datos del mes
+if not df.empty and 'Fecha' in df.columns:
+    df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == sel_anio)]
+else: df_f = pd.DataFrame()
 
-# =========================================================
-# 2. SECCIÓN CUENTAS (GRID DE 3) 💳
-# =========================================================
+ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
+gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
+bal_m = ing_m - gas_m
 
-c_cont = st.container()
+st.markdown(f"<h3 style='text-align: center;'>RESUMEN: {sel_mes.upper()} {sel_anio}</h3>", unsafe_allow_html=True)
+k1, k2, k3 = st.columns(3)
+k1.metric("Ingresos Mes", f"S/ {ing_m:,.2f}", f"{len(df_f[df_f['Tipo']=='Ingreso'])} ops")
+k2.metric("Gastos Mes", f"S/ {gas_m:,.2f}", f"{len(df_f[df_f['Tipo']=='Gasto'])} ops", delta_color="inverse")
+k3.metric("Ahorro Mes", f"S/ {bal_m:,.2f}", delta="Balance")
 
-with c_cont:
-    # Layout más espacioso
-    c1, c2, c3 = st.columns([4, 1, 1], vertical_alignment="bottom")
+st.markdown("---")
 
-    with c1:
-        st.subheader("CUENTAS")
-    with c2:
-        # Botón AGREGAR
-        if st.button("Agregar", key="btn_add_main", use_container_width=True):
-            dialog_agregar_cuenta()
-    with c3:
-        # Botón ELIMINAR
-        if st.button("Eliminar", key="btn_del_main", use_container_width=True):
-            dialog_eliminar_cuenta(lista_cuentas)
+# ==============================================================================
+# FILA 3: CUERPO PRINCIPAL (IZQUIERDA: REGISTRO | DERECHA: CUENTAS Y METAS)
+# ==============================================================================
+col_izq, col_der = st.columns([1, 2], gap="large") # 1/3 para registro, 2/3 para dashboard
 
-    # --- GRID DE 3 COLUMNAS ---
-    cols_display = st.columns(3) 
+# --- COLUMNA IZQUIERDA: FORMULARIO DE REGISTRO ---
+with col_izq:
+    st.subheader("📝 REGISTRO")
+    with st.container(border=True):
+        st.write("TIPO DE OPERACIÓN:")
+        op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True, label_visibility="collapsed")
+        
+        with st.form("form_registro", clear_on_submit=True):
+            u = st.selectbox("USUARIO:", ["Rodrigo", "Krys"])
+            
+            if op == "Transferencia":
+                c1, c2 = st.columns(2)
+                c_ori = c1.selectbox("Desde:", lista_cuentas)
+                c_des = c2.selectbox("Hacia:", lista_cuentas)
+                cat = "Transferencia"
+                cta = c_ori
+            else:
+                cta = st.selectbox("CUENTA:", lista_cuentas)
+                if "Gasto" in op:
+                    cat = st.selectbox("CATEGORÍA:", list(presupuestos_dict.keys())+["Otros", "Comida", "Taxi", "Gustitos"])
+                else:
+                    cat = st.selectbox("CATEGORÍA:", ["Sueldo", "Negocio", "Regalo", "Otros"])
+            
+            monto = st.number_input("MONTO S/:", min_value=0.01, format="%.2f")
+            desc = st.text_input("DESCRIPCIÓN:")
+            
+            if st.form_submit_button("GUARDAR MOVIMIENTO", use_container_width=True):
+                try:
+                    now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
+                    time_str = datetime.now(zona_peru).strftime("%H:%M:%S")
+                    if op == "Transferencia":
+                        if c_ori == c_des: st.error("Cuentas iguales")
+                        else:
+                            r1 = [now_str, time_str, u, c_ori, "Gasto", "Transferencia/Salida", monto, f"-> {c_des}: {desc}"]
+                            r2 = [now_str, time_str, u, c_des, "Ingreso", "Transferencia/Entrada", monto, f"<- {c_ori}: {desc}"]
+                            ws_registro.append_row(r1); ws_registro.append_row(r2)
+                            limpiar_cache(); st.success("Transferencia OK"); time.sleep(1); st.rerun()
+                    else:
+                        tipo = "Gasto" if "Gasto" in op else "Ingreso"
+                        ws_registro.append_row([now_str, time_str, u, cta, tipo, cat, monto, desc])
+                        limpiar_cache(); st.success("Guardado OK"); time.sleep(1); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+
+# --- COLUMNA DERECHA: DASHBOARD (CUENTAS Y METAS) ---
+with col_der:
+    # SECCIÓN CUENTAS
+    c_tit, c_add, c_del = st.columns([4, 1, 1], vertical_alignment="bottom")
+    c_tit.subheader("💳 CUENTAS")
+    if c_add.button("Agregar", use_container_width=True): dialog_agregar_cuenta()
+    if c_del.button("Eliminar", use_container_width=True): dialog_eliminar_cuenta(lista_cuentas)
     
+    # GRID DE 3 TARJETAS
+    cols_display = st.columns(3)
     for i, cuenta in enumerate(lista_cuentas):
-        # Lógica Saldos
         if not df.empty:
-            ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-            gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-            saldo_d = ingresos_h - gastos_h
-        else:
-            ingresos_h, gastos_h, saldo_d = 0, 0, 0
-
-        pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100 if ingresos_h > 0 else 0
+            ing_h = df[(df['Cuenta']==cuenta)&(df['Tipo']=='Ingreso')]['Monto'].sum()
+            gas_h = df[(df['Cuenta']==cuenta)&(df['Tipo']=='Gasto')]['Monto'].sum()
+            saldo = ing_h - gas_h
+        else: ing_h, gas_h, saldo = 0, 0, 0
+        
+        pct = min(max(saldo/ing_h, 0.0), 1.0)*100 if ing_h > 0 else 0
         bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
-
+        
         html = f"""
         <div class="tarjeta-capigastos" style="{bg}">
-            <div style="position: absolute; top: 20px; left: 20px;">
-                <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9; color: white !important;">CAPIGASTOS CARD</div>
-                <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase; color: white !important;">{cuenta}</div>
+            <div style="position:absolute; top:20px; left:20px;">
+                <div style="font-size:12px; opacity:0.9;">CAPIGASTOS CARD</div>
+                <div style="font-size:16px; font-weight:bold; text-transform:uppercase; margin-top:5px;">{cuenta}</div>
             </div>
-            <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
-                <div class="texto-sombra" style="font-size: 10px; opacity: 0.9; color: white !important;">SALDO DISPONIBLE</div>
-                <div class="texto-sombra" style="font-size: 24px; font-weight: bold; color: white !important;">S/ {saldo_d:,.2f}</div>
+            <div style="position:absolute; top:70px; right:20px; text-align:right;">
+                <div style="font-size:10px; opacity:0.9;">DISPONIBLE</div>
+                <div style="font-size:22px; font-weight:bold;">S/ {saldo:,.2f}</div>
             </div>
-            <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
-                <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
-                    <span style="color: white !important;">⬇ Ing: {ingresos_h:,.0f}</span>
-                    <span style="color: #ffcccb !important;">⬆ Gas: {gastos_h:,.0f}</span>
+            <div style="position:absolute; bottom:20px; left:20px; right:20px;">
+                <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:5px;">
+                    <span>⬇ {ing_h:,.0f}</span><span>⬆ {gas_h:,.0f}</span>
                 </div>
-                <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
-                <div style="text-align: right; font-size: 9px; margin-top: 2px; color: white !important;" class="texto-sombra">{pct:.0f}% Disp.</div>
+                <div class="barra-fondo"><div class="barra-progreso" style="width:{pct}%;"></div></div>
             </div>
         </div>
         """
-        
-        with cols_display[i % 3]: 
-            st.markdown(html, unsafe_allow_html=True)
-
-st.divider()
-
-# 3. Metas
-st.subheader("Metas del Mes")
-if not df_f.empty:
-    gastos_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
-else:
-    gastos_cat = {}
-
-cp = st.columns(2)
-ip = 0
-for cat, tope in presupuestos_dict.items():
-    real = gastos_cat.get(cat, 0)
-    pct = (real/tope) if tope>0 else 0
-    with cp[ip%2]:
-        st.write(f"**{cat}**")
-        st.progress(min(pct, 1.0))
-        st.caption(f"{real:.0f} / {tope} ({pct*100:.0f}%)")
-    ip += 1
-
-st.divider()
-
-# 4. Registro
-st.subheader("Operación")
-op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True)
-
-with st.form("op_form", clear_on_submit=True):
-    fc1, fc2 = st.columns(2)
-    u = fc1.selectbox("Usuario", ["Rodrigo", "Krys"])
+        with cols_display[i%3]: st.markdown(html, unsafe_allow_html=True)
     
-    if op == "Transferencia":
-        c_origen = fc2.selectbox("Desde", lista_cuentas)
-        c_dest = st.selectbox("Hacia", lista_cuentas)
-        cat = "Transferencia"
+    st.divider()
+    
+    # SECCIÓN METAS
+    st.subheader("🎯 METAS DEL MES")
+    if not df_f.empty: gas_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
+    else: gas_cat = {}
+    
+    cm1, cm2 = st.columns(2)
+    idx_m = 0
+    for cat, tope in presupuestos_dict.items():
+        real = gas_cat.get(cat, 0)
+        pct_meta = min(real/tope, 1.0) if tope > 0 else 0
+        with (cm1 if idx_m % 2 == 0 else cm2):
+            st.write(f"**{cat}**")
+            st.progress(pct_meta)
+            st.caption(f"S/ {real:,.0f} / {tope:,.0f}")
+        idx_m += 1
+
+# ==============================================================================
+# FILA 4: HISTORIAL (ABAJO DE TODO)
+# ==============================================================================
+st.divider()
+st.subheader("📜 HISTORIAL DE MOVIMIENTOS")
+with st.expander("Ver tabla completa", expanded=True):
+    if not df_f.empty:
+        st.dataframe(
+            df_f[['Fecha', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']].sort_values('Fecha', ascending=False),
+            use_container_width=True,
+            hide_index=True
+        )
+        if st.button("BORRAR ÚLTIMO MOVIMIENTO (DANGER)", type="primary"):
+             rows = len(ws_registro.get_all_values())
+             if rows > 1:
+                 ws_registro.delete_rows(rows)
+                 limpiar_cache(); st.success("Borrado"); time.sleep(1); st.rerun()
     else:
-        cta = fc2.selectbox("Cuenta", lista_cuentas)
-        if "Gasto" in op:
-            cat = st.selectbox("Categoría", list(presupuestos_dict.keys())+["Otros"])
-        else:
-            cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo", "Otros"])
-            
-    monto = st.number_input("Monto", min_value=0.01, format="%.2f")
-    desc = st.text_input("Detalle")
-    
-    if st.form_submit_button("Guardar"):
-        try:
-            now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
-            time_str = datetime.now(zona_peru).strftime("%H:%M:%S")
-            
-            if op == "Transferencia":
-                if c_origen == c_dest:
-                    st.error("Cuentas iguales")
-                else:
-                    r1 = [now_str, time_str, u, c_origen, "Gasto", "Transferencia/Salida", monto, f"-> {c_dest}: {desc}"]
-                    r2 = [now_str, time_str, u, c_dest, "Ingreso", "Transferencia/Entrada", monto, f"<- {c_origen}: {desc}"]
-                    intento_seguro(lambda: ws_registro.append_row(r1))
-                    intento_seguro(lambda: ws_registro.append_row(r2))
-                    limpiar_cache()
-                    st.success("Transferencia OK")
-                    time.sleep(1)
-                    st.rerun()
-            else:
-                tipo = "Gasto" if "Gasto" in op else "Ingreso"
-                row = [now_str, time_str, u, cta, tipo, cat, monto, desc]
-                intento_seguro(lambda: ws_registro.append_row(row))
-                limpiar_cache()
-                st.success("Guardado OK")
-                time.sleep(1)
-                st.rerun()
-        except Exception as e:
-            st.error(f"Error guardando: {e}")
-
-# 5. Borrar
-with st.expander("Borrar Último"):
-    if not df.empty:
-        st.dataframe(df.sort_values("Fecha", ascending=False).head(3), use_container_width=True)
-        if st.button("BORRAR"):
-            try:
-                rows = len(ws_registro.get_all_values())
-                if rows > 1:
-                    intento_seguro(lambda: ws_registro.delete_rows(rows))
-                    limpiar_cache()
-                    st.success("Borrado")
-                    time.sleep(1)
-                    st.rerun()
-            except Exception as e:
-                st.error(f"Error borrando: {e}")
+        st.info("No hay movimientos registrados en este mes.")
