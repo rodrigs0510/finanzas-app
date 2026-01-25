@@ -1,5 +1,10 @@
 import streamlit as st
 
+with open("styles.css", "r", encoding="utf-8") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+import streamlit as st
+
 # ---------------- CONFIG GENERAL ----------------
 st.set_page_config(
     page_title="CAPIGASTOS",
@@ -40,3 +45,4 @@ with col_izq:
 
 with col_der:
     render_dashboard()
+
