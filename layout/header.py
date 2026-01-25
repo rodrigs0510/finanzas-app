@@ -35,3 +35,4 @@ def render_header():
         with col_kpi:
             st.metric("Saldo total", "S/ 0.00")
             st.metric("Ahorro total", "S/ 0.00")
+
