@@ -84,29 +84,39 @@ def obtener_presupuestos():
 def limpiar_cache():
     st.cache_data.clear()
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.header("Configuración")
-    with st.expander("Cuentas"):
-        nueva = st.text_input("Nueva Cuenta")
-        if st.button("Crear"):
-            if nueva:
-                ws_cuentas.append_row([nueva])
-                limpiar_cache()
-                st.success("Creada")
-                time.sleep(1)
-                st.rerun()
+# --- VENTANAS EMERGENTES (DIALOGS) ---
+@st.dialog("➕ Agregar Nueva Cuenta")
+def dialog_agregar_cuenta():
+    nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
+    if st.button("Crear Cuenta"):
+        if nombre_cuenta:
+            ws_cuentas.append_row([nombre_cuenta])
+            limpiar_cache()
+            st.success("¡Cuenta creada!")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.warning("Escribe un nombre primero.")
 
-    with st.expander("Presupuestos"):
-        n_cat = st.text_input("Categoría")
-        n_tope = st.number_input("Tope", min_value=0)
-        if st.button("Crear Meta"):
-            if n_cat:
-                ws_presupuestos.append_row([n_cat, n_tope])
-                limpiar_cache()
-                st.success("Creada")
-                time.sleep(1)
-                st.rerun()
+@st.dialog("🗑️ Eliminar Cuenta")
+def dialog_eliminar_cuenta(lista_actual):
+    cuenta_a_borrar = st.selectbox("Selecciona la cuenta a eliminar:", lista_actual)
+    st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
+    
+    col_d1, col_d2 = st.columns(2)
+    if col_d1.button("Sí, Eliminar", type="primary"):
+        try:
+            cell = ws_cuentas.find(cuenta_a_borrar)
+            ws_cuentas.delete_rows(cell.row)
+            limpiar_cache()
+            st.success("Cuenta eliminada.")
+            time.sleep(1)
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
+    
+    if col_d2.button("Cancelar"):
+        st.rerun()
 
 # --- HEADER ---
 col_logo, col_titulo = st.columns([1, 4]) 
@@ -190,11 +200,19 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # ==========================================
-# 2. CUENTAS (DISEÑO LIMPIO Y POSICIONADO) 💳
+# 2. CUENTAS (CON BOTONES DE GESTIÓN) 💳
 # ==========================================
-st.subheader("CUENTAS")
+# Aquí ponemos el título y los botones en la misma fila
+c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1])
+with c_titulo_cta:
+    st.subheader("CUENTAS")
+with c_btn_add:
+    if st.button("➕ Agregar", use_container_width=True):
+        dialog_agregar_cuenta()
+with c_btn_del:
+    if st.button("🗑️ Eliminar", use_container_width=True):
+        dialog_eliminar_cuenta(lista_cuentas)
 
-# CSS para asegurar que no haya márgenes raros
 st.markdown("""
 <style>
     .tarjeta-capigastos {
@@ -232,38 +250,27 @@ for cuenta in lista_cuentas:
 
     bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
 
-    # USAMOS POSICIONAMIENTO ABSOLUTO PARA EVITAR CHOCAR CON EL CHIP
-    # Top-Left: Marca y Nombre
-    # Right-Middle: Saldo (Al lado del chip)
-    # Bottom: Stats y Barra
+    # HTML SIN INDENTACIÓN (Fix visual)
     html = f"""
-    <div class="tarjeta-capigastos" style="{bg}">
-        <div style="position: absolute; top: 20px; left: 20px;">
-            <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
-            <div class="texto-sombra" style="font-size: 20px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
-        </div>
-
-        <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
-            <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
-            <div class="texto-sombra" style="font-size: 28px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
-        </div>
-
-        <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
-                <span>⬇ Ingresos: {ingresos_h:,.0f}</span>
-                <span style="color: #ffcccb;">⬆ Gastos: {gastos_h:,.0f}</span>
-            </div>
-            <div class="barra-fondo">
-                <div class="barra-progreso" style="width: {pct}%;"></div>
-            </div>
-            <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Restante</div>
-        </div>
-    </div>
-    """
-    
-    # Eliminamos saltos de línea para que Streamlit no se confunda
-    html = html.replace("\n", "")
-
+<div class="tarjeta-capigastos" style="{bg}">
+<div style="position: absolute; top: 20px; left: 20px;">
+<div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
+<div class="texto-sombra" style="font-size: 20px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
+</div>
+<div style="position: absolute; top: 75px; right: 20px; text-align: right;">
+<div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
+<div class="texto-sombra" style="font-size: 28px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
+</div>
+<div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
+<div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
+<span>⬇ Ingresos: {ingresos_h:,.0f}</span>
+<span style="color: #ffcccb;">⬆ Gastos: {gastos_h:,.0f}</span>
+</div>
+<div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
+<div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Restante</div>
+</div>
+</div>
+"""
     with cols_c[idx_c % 2]:
         st.markdown(html, unsafe_allow_html=True)
     
