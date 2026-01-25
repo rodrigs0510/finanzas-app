@@ -1,17 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Fredoka', sans-serif;
-    color: #000000;
+/* Fondo global de la app */
+.stApp {
+    background-image: url("fondo.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
-.bloque-capibara {
-    background-color: #FDF5E6;
-    border: 2px solid #4A3B2A;
-    border-radius: 15px;
-    padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+/* Quitar fondo blanco de Streamlit */
+[data-testid="stAppViewContainer"] {
+    background: transparent;
 }
-
-/* TODO TU CSS COMPLETO */
