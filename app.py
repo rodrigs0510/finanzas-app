@@ -56,9 +56,13 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
+st.markdown('<div class="bloque-capigastos">', unsafe_allow_html=True)
+
 render_header()
 render_registro()
 render_dashboard()
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 
 
