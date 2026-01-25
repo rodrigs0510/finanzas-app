@@ -7,8 +7,13 @@ import time
 import pytz 
 import base64
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
+# --- 1. CONFIGURACIÓN (WIDE MODE ACTIVADO POR DEFECTO) ---
+st.set_page_config(
+    page_title="CAPIGASTOS", 
+    layout="wide",  # <--- ESTO SOLUCIONA QUE LAS TARJETAS SE VEAN APRETADAS
+    page_icon="🐹",
+    initial_sidebar_state="collapsed"
+)
 
 # --- CARGAR IMÁGENES ---
 def get_image_as_base64(file_path):
@@ -19,10 +24,9 @@ def get_image_as_base64(file_path):
     except Exception:
         return None
 
-# Cargamos TODOS los recursos gráficos
-img_fondo = get_image_as_base64("fondo.jpg")
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
+img_fondo = get_image_as_base64("fondo.jpg") # Asegúrate que este archivo exista
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -120,36 +124,114 @@ def dialog_eliminar_cuenta(lista_actual):
     if col_d2.button("Cancelar"):
         st.rerun()
 
-# --- CSS: FONDO DE PANTALLA ---
-# Esto inyecta el fondo si la imagen existe
-if img_fondo:
-    st.markdown(f"""
-    <style>
+# --- CSS MAESTRO (SOLUCIÓN DE VISUALIZACIÓN) ---
+st.markdown(f"""
+<style>
+    /* 1. FONDO DE PANTALLA (SIN ESTIRARSE) */
     .stApp {{
         background-image: url("data:image/jpg;base64,{img_fondo}");
-        background-size: cover;
-        background-position: center;
+        background-size: cover; /* Mantiene proporción, recorta sobrante */
+        background-position: center top;
         background-attachment: fixed;
     }}
-    /* Hacemos un poco transparente el contenedor principal para que se vea el fondo */
+
+    /* 2. CONTENEDOR TIPO "CRISTAL" (Para leer letras sobre fondo oscuro) */
     .block-container {{
-        background-color: rgba(255, 255, 255, 0.85); /* Fondo blanco semitransparente detrás del contenido */
-        border-radius: 20px;
-        padding: 2rem;
-        margin-top: 2rem;
+        background-color: rgba(253, 245, 230, 0.90); /* Beige Capibara Semitransparente */
+        border-radius: 15px;
+        padding: 3rem !important;
+        margin-top: 20px;
+        border: 2px solid #4A3B2A;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
     }}
-    </style>
-    """, unsafe_allow_html=True)
+
+    /* 3. FORZAR COLOR DE TEXTO (CORRIGE MODO OSCURO) */
+    h1, h2, h3, p, span, label, .stMarkdown {{
+        color: #4A3B2A !important; /* Marrón oscuro siempre */
+        text-shadow: none !important;
+    }}
+    
+    /* 4. INPUTS Y SELECTORES (SIEMPRE CLAROS) */
+    .stTextInput input, .stNumberInput input, .stSelectbox div, div[data-baseweb="select"] {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border: 1px solid #4A3B2A !important;
+    }}
+    /* Color del texto dentro de los inputs */
+    .stTextInput input {{ color: black !important; }}
+
+    /* 5. ESTILOS DE BOTONES (PASTILLA) */
+    div.stButton > button {{
+        background-color: #8B4513;
+        color: white !important; /* Letra blanca en botones marrones */
+        border: 2px solid #5e2f0d;
+        border-radius: 50px;
+        padding: 5px 20px;
+        font-weight: bold;
+        box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+        transition: all 0.2s;
+    }}
+
+    /* Botón AGREGAR (Verde) */
+    div.stButton > button:has(p:contains('Agregar')) {{
+        background-color: #A2D149 !important;
+        border: 2px solid #556B2F !important;
+        color: black !important; /* Letra negra para contraste */
+    }}
+    div.stButton > button:has(p:contains('Agregar')):hover {{
+        background-color: #b0e050 !important;
+        transform: scale(1.05);
+    }}
+
+    /* Botón ELIMINAR (Rojo) */
+    div.stButton > button:has(p:contains('Eliminar')), 
+    div.stButton > button:has(div p:contains('Sí, Eliminar')) {{
+        background-color: #EA6B66 !important;
+        border: 2px solid #8B0000 !important;
+        color: black !important;
+    }}
+    div.stButton > button:has(p:contains('Eliminar')):hover {{
+        background-color: #f77c77 !important;
+        transform: scale(1.05);
+    }}
+
+    /* 6. TARJETAS */
+    @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+    .tarjeta-capigastos {{
+        animation: fadeIn 0.5s ease-out;
+        border-radius: 15px;
+        padding: 20px;
+        color: white !important; /* Texto blanco DENTRO de la tarjeta */
+        margin-bottom: 15px;
+        box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4);
+        position: relative;
+        height: 220px;
+        background-size: 100% 100%; 
+        background-position: center;
+    }}
+    /* Excepción para texto dentro de tarjeta (debe ser blanco o claro) */
+    .tarjeta-capigastos h1, .tarjeta-capigastos h2, .tarjeta-capigastos h3, 
+    .tarjeta-capigastos p, .tarjeta-capigastos span, .tarjeta-capigastos div {{
+        color: white !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important;
+    }}
+    
+    .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }}
+    .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
+
+</style>
+""", unsafe_allow_html=True)
 
 # --- HEADER ---
-col_logo, col_titulo = st.columns([1, 4]) 
+col_logo, col_titulo = st.columns([1, 6]) 
 with col_logo:
     if img_logo:
-        st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="80">', unsafe_allow_html=True)
+        st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="120">', unsafe_allow_html=True)
     else:
         st.write("🐹") 
 with col_titulo:
-    st.title("CAPIGASTOS")
+    # Usamos HTML directo para asegurar el estilo del título
+    st.markdown("<h1 style='font-size: 60px; margin-top: 20px;'>CAPIGASTOS</h1>", unsafe_allow_html=True)
 
 # ZONA HORARIA
 zona_peru = pytz.timezone('America/Lima')
@@ -223,14 +305,14 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (GRID DE 3 + FONDO) 💳
+# 2. SECCIÓN CUENTAS (GRID DE 3) 💳
 # =========================================================
 
 c_cont = st.container()
 
 with c_cont:
-    # Alineación vertical "bottom"
-    c1, c2, c3 = st.columns([2, 1, 1], vertical_alignment="bottom")
+    # Layout más espacioso
+    c1, c2, c3 = st.columns([4, 1, 1], vertical_alignment="bottom")
 
     with c1:
         st.subheader("CUENTAS")
@@ -243,70 +325,8 @@ with c_cont:
         if st.button("Eliminar", key="btn_del_main", use_container_width=True):
             dialog_eliminar_cuenta(lista_cuentas)
 
-    # --- CSS BOTONES Y TARJETAS ---
-    st.markdown("""
-    <style>
-        /* ESTILOS BASE PARA BOTONES */
-        div.stButton > button {
-            background-color: #8B4513;
-            color: white;
-            border: 2px solid #5e2f0d;
-            border-radius: 50px; /* PASTILLA */
-            padding: 5px 20px;
-            font-weight: bold;
-            box-shadow: 0 3px 5px rgba(0,0,0,0.3);
-            transition: all 0.2s;
-        }
-
-        /* 1. BOTÓN AGREGAR (VERDE) */
-        div.stButton > button:has(div p:contains('Agregar')),
-        div.stButton > button:has(p:contains('Agregar')) {
-            background-color: #A2D149 !important; /* Verde claro vibrante */
-            border: 2px solid #556B2F !important;
-            color: black !important;
-        }
-        div.stButton > button:has(div p:contains('Agregar')):hover {
-            background-color: #b0e050 !important;
-            transform: scale(1.05);
-        }
-
-        /* 2. BOTÓN ELIMINAR (ROJO) */
-        div.stButton > button:has(div p:contains('Eliminar')),
-        div.stButton > button:has(div p:contains('Sí, Eliminar')),
-        div.stButton > button:has(p:contains('Eliminar')) {
-            background-color: #EA6B66 !important; /* Rojo suave */
-            border: 2px solid #8B0000 !important;
-            color: black !important;
-        }
-        div.stButton > button:has(div p:contains('Eliminar')):hover {
-            background-color: #f77c77 !important;
-            transform: scale(1.05);
-        }
-
-        /* 3. ESTILOS TARJETA (ANIMACIÓN FADE IN) */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .tarjeta-capigastos {
-            animation: fadeIn 0.5s ease-out;
-            border-radius: 15px;
-            padding: 20px;
-            color: white;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4);
-            position: relative;
-            height: 220px;
-            background-size: 100% 100%; 
-            background-position: center;
-        }
-        .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
-        .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
-        .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
-
-    </style>
-    """, unsafe_allow_html=True)
-
     # --- GRID DE 3 COLUMNAS ---
-    cols_display = st.columns(3)
+    cols_display = st.columns(3) 
     
     for i, cuenta in enumerate(lista_cuentas):
         # Lógica Saldos
@@ -323,20 +343,20 @@ with c_cont:
         html = f"""
         <div class="tarjeta-capigastos" style="{bg}">
             <div style="position: absolute; top: 20px; left: 20px;">
-                <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
-                <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
+                <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9; color: white !important;">CAPIGASTOS CARD</div>
+                <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase; color: white !important;">{cuenta}</div>
             </div>
             <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
-                <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
-                <div class="texto-sombra" style="font-size: 24px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
+                <div class="texto-sombra" style="font-size: 10px; opacity: 0.9; color: white !important;">SALDO DISPONIBLE</div>
+                <div class="texto-sombra" style="font-size: 24px; font-weight: bold; color: white !important;">S/ {saldo_d:,.2f}</div>
             </div>
             <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
                 <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
-                    <span>⬇ Ing: {ingresos_h:,.0f}</span>
-                    <span style="color: #ffcccb;">⬆ Gas: {gastos_h:,.0f}</span>
+                    <span style="color: white !important;">⬇ Ing: {ingresos_h:,.0f}</span>
+                    <span style="color: #ffcccb !important;">⬆ Gas: {gastos_h:,.0f}</span>
                 </div>
                 <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
-                <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Disp.</div>
+                <div style="text-align: right; font-size: 9px; margin-top: 2px; color: white !important;" class="texto-sombra">{pct:.0f}% Disp.</div>
             </div>
         </div>
         """
