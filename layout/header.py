@@ -1,15 +1,58 @@
 import streamlit as st
-import os
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOGO = os.path.join(BASE_DIR, "assets", "images", "logo.png")
 
 def render_header():
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        st.image(LOGO, width=150)
-    with col2:
-        st.title("CAPIGASTOS")
+    st.markdown('<div class="bloque-capibara">', unsafe_allow_html=True)
 
+    col_logo, col_filtros, col_kpi = st.columns([1.2, 2.5, 2.3])
 
+    # LOGO
+    with col_logo:
+        st.image("assets/images/logo.png", width=180)
 
+    # FILTROS
+    with col_filtros:
+        st.markdown("#### USUARIO")
+        usuario = st.selectbox(
+            "",
+            ["Rodrigo", "Krys"],
+            key="usuario_header"
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("#### MES")
+            mes = st.selectbox(
+                "",
+                [
+                    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                ],
+                key="mes_header"
+            )
+
+        with c2:
+            st.markdown("#### AÑO")
+            anio = st.number_input(
+                "",
+                min_value=2020,
+                max_value=2100,
+                value=2025,
+                step=1,
+                key="anio_header"
+            )
+
+    # KPI
+    with col_kpi:
+        st.markdown("""
+        <div class="kpi-box">
+            <div>SALDO TOTAL</div>
+            <div style="font-size:22px; font-weight:900;">S/ 0.00</div>
+        </div>
+        <br>
+        <div class="kpi-box">
+            <div>AHORRO TOTAL</div>
+            <div style="font-size:22px; font-weight:900; color:#2E8B57;">S/ 0.00</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
