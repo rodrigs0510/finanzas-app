@@ -1,10 +1,14 @@
 body {
-    border: 10px solid red;
-}
-.stApp {
-    background-image: url("assets/imagenes/fondo.jpg");
+    background-image: url("assets/images/fondo.jpg");
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
 }
+
+.main {
+    background-color: rgba(0, 0, 0, 0.55); /* capa oscura */
+    padding: 20px;
+    border-radius: 15px;
+}
+
 
