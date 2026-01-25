@@ -68,19 +68,14 @@ def obtener_datos():
     columnas_base = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     try:
         data = intento_seguro(lambda: ws_registro.get_all_records())
-        if not data: 
-            return pd.DataFrame(columns=columnas_base)
-        
+        if not data: return pd.DataFrame(columns=columnas_base)
         df = pd.DataFrame(data)
         for col in columnas_base:
-            if col not in df.columns:
-                df[col] = ""
-        
+            if col not in df.columns: df[col] = ""
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
         df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
         return df
-    except:
-        return pd.DataFrame(columns=columnas_base)
+    except: return pd.DataFrame(columns=columnas_base)
 
 @st.cache_data(ttl=600)
 def obtener_cuentas():
@@ -118,50 +113,63 @@ def dialog_eliminar_cuenta(lista_actual):
         limpiar_cache(); st.success("Eliminada"); time.sleep(1); st.rerun()
     if c2.button("Cancelar"): st.rerun()
 
-# --- CSS DEFINITIVO (CORRECCIÓN DE FONDOS) ---
+# --- CSS NUCLEAR (V15.0) ---
 st.markdown(f"""
 <style>
-    /* 1. FONDO DE LA PANTALLA PRINCIPAL */
+    /* 1. OCULTAR LA LÍNEA DE COLORES DE ARRIBA Y EL HEADER */
+    header {{visibility: hidden;}}
+    .stApp > header {{display: none;}}
+    
+    /* 2. SUBIR EL CONTENIDO (QUITAR ESPACIO VACÍO ARRIBA) */
+    .block-container {{
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        max-width: 95% !important;
+    }}
+
+    /* 3. FONDO DE PANTALLA FIJO */
     .stApp {{
         background-image: url("data:image/jpg;base64,{img_fondo}");
         background-size: cover; 
-        background-position: center top; 
+        background-position: center; 
         background-attachment: fixed;
     }}
-    
-    /* 2. ESTILO PARA LOS CONTENEDORES (LAS CAJAS) */
-    /* Aquí está la magia: Pintamos el fondo de beige para tapar la imagen de atrás */
+
+    /* 4. ¡LA SOLUCIÓN A LA TRANSPARENCIA! 
+       Esto fuerza que CUALQUIER contenedor con borde tenga fondo SÓLIDO */
     div[data-testid="stVerticalBlockBorderWrapper"] {{
-        background-color: rgba(253, 245, 230, 0.95) !important; /* Beige 'Old Lace' Sólido */
-        border: 2px solid #8B4513 !important; /* Borde Marrón */
-        border-radius: 15px !important;
+        background-color: #FFF8DC !important; /* Crema Sólido (Cornsilk) */
+        border: 3px solid #8B4513 !important; /* Borde Marrón Grueso */
+        border-radius: 20px !important;
         padding: 20px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2); /* Sombra fuerte */
+    }}
+    
+    /* Aseguramos que el contenido dentro no sea transparente */
+    div[data-testid="stVerticalBlockBorderWrapper"] > div {{
+        background-color: transparent !important; 
     }}
 
-    /* 3. TEXTOS (Color Marrón Capigastos) */
-    html, body, [class*="css"], h1, h2, h3, h4, p, span, label, div, .stMarkdown {{
-        color: #4A3B2A !important; 
+    /* 5. TEXTOS LEIBLES SIEMPRE */
+    h1, h2, h3, h4, p, span, label, div, .stMarkdown {{
+        color: #4A3B2A !important; /* Marrón Oscuro */
+        font-family: sans-serif;
     }}
-    /* Excepción: Textos dentro de las tarjetas de crédito (blanco) */
+    
+    /* Excepción para tarjetas (letras blancas) */
     .tarjeta-capigastos *, .tarjeta-capigastos div {{ 
         color: white !important; 
     }}
 
-    /* 4. INPUTS (Cajas de texto y selectores) */
+    /* 6. INPUTS LIMPIOS (Cajas Blancas) */
     .stTextInput input, .stNumberInput input, div[data-baseweb="select"] > div {{
-        background-color: #FFFFFF !important; /* Fondo Blanco puro */
+        background-color: #FFFFFF !important;
         color: #000000 !important;
         border: 2px solid #8B4513 !important;
-        border-radius: 8px !important;
-    }}
-    /* Quitar brillo azul al seleccionar */
-    .stTextInput > div[data-baseweb="input-container"]:focus-within {{
-        border-color: #A0522D !important;
-        box-shadow: none !important;
+        border-radius: 10px !important;
     }}
 
-    /* 5. TARJETAS VISUALES */
+    /* 7. TARJETAS */
     .tarjeta-capigastos {{
         border-radius: 15px; padding: 15px; color: white !important; margin-bottom: 10px;
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3); position: relative; height: 180px;
@@ -170,7 +178,7 @@ st.markdown(f"""
     .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 6px; width: 100%; margin-top: 5px; }}
     .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
 
-    /* 6. BOTONES CON IMÁGENES */
+    /* 8. BOTONES IMAGEN */
     div.stButton > button[title="AGREGAR_IMG"] {{
         background-image: url("data:image/png;base64,{img_btn_add}");
         background-size: 100% 100%; border: none !important; background-color: transparent !important;
@@ -181,7 +189,7 @@ st.markdown(f"""
         background-size: 100% 100%; border: none !important; background-color: transparent !important;
         height: 45px; width: 100%;
     }}
-    /* Botón Genérico (Guardar, etc) */
+    /* Botón Genérico */
     div.stButton > button {{
         background-color: #8B4513 !important; color: white !important; 
         border-radius: 20px; border: 2px solid #5e2f0d !important;
@@ -190,7 +198,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGICA DE DATOS ---
+# --- LOGICA ---
 zona_peru = pytz.timezone('America/Lima')
 try:
     df = obtener_datos()
@@ -211,31 +219,27 @@ if not df.empty:
         saldo_actual += (i-g)
 
 # ==============================================================================
-# 1. HEADER (LOGO | SELECCION MES | TOTALES)
+# 1. HEADER (SOLIDO)
 # ==============================================================================
-with st.container(border=True): # <--- AHORA ESTA CAJA TENDRA FONDO BEIGE
+with st.container(border=True): # ESTA CAJA AHORA SERÁ CREMA SÓLIDA
     c1, c2, c3 = st.columns([1.5, 1.5, 1.5], vertical_alignment="center")
-    
     with c1:
         cc1, cc2 = st.columns([1, 3])
         with cc1:
             if img_logo: st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="80">', unsafe_allow_html=True)
-        with cc2:
-            st.markdown("<h2>CAPIGASTOS</h2>", unsafe_allow_html=True)
-
+        with cc2: st.markdown("<h2>CAPIGASTOS</h2>", unsafe_allow_html=True)
     with c2:
         meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         now = datetime.now(zona_peru)
-        col_m, col_a = st.columns(2)
-        sel_mes = col_m.selectbox("Mes", meses, index=now.month-1, label_visibility="collapsed")
-        sel_anio = col_a.number_input("Año", value=now.year, label_visibility="collapsed")
+        cm, ca = st.columns(2)
+        sel_mes = cm.selectbox("Mes", meses, index=now.month-1, label_visibility="collapsed")
+        sel_anio = ca.number_input("Año", value=now.year, label_visibility="collapsed")
         mes_idx = meses.index(sel_mes) + 1
-
     with c3:
         st.markdown(f"<div style='text-align:right;'><b>Saldo Total:</b> S/ {saldo_actual:,.2f}<br><b>Ahorro Histórico:</b> S/ {ahorro_vida:,.2f}</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. CONSOLIDADO DEL MES
+# 2. CONSOLIDADO
 # ==============================================================================
 if not df.empty and 'Fecha' in df.columns:
     df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == sel_anio)]
@@ -245,7 +249,7 @@ ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
 gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
 bal_m = ing_m - gas_m
 
-with st.container(border=True): # <--- CAJA BEIGE
+with st.container(border=True): # ESTA CAJA TAMBIÉN SERÁ SÓLIDA
     st.markdown(f"<h4 style='text-align:center; margin:0;'>CONSOLIDADO: {sel_mes.upper()} {sel_anio}</h4>", unsafe_allow_html=True)
     k1, k2, k3 = st.columns(3)
     k1.metric("Ingresos", f"S/ {ing_m:,.2f}")
@@ -255,34 +259,30 @@ with st.container(border=True): # <--- CAJA BEIGE
 st.write("")
 
 # ==============================================================================
-# 3. CUERPO PRINCIPAL DIVIDIDO
+# 3. CUERPO
 # ==============================================================================
-col_main_left, col_main_right = st.columns([1, 1.8], gap="medium")
+col_izq, col_der = st.columns([1, 1.8], gap="medium")
 
-# --- IZQUIERDA: FORMULARIO ---
-with col_main_left:
-    with st.container(border=True): # <--- CAJA BEIGE
+# --- IZQUIERDA ---
+with col_izq:
+    with st.container(border=True): # CAJA SÓLIDA
         st.markdown("### 📝 FORMULARIO")
         st.write("**Registrar:**")
         op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True, label_visibility="collapsed")
         
         with st.form("form_main", clear_on_submit=True):
             u = st.selectbox("Usuario", ["Rodrigo", "Krys"])
-            
             if op == "Transferencia":
                 c_ori = st.selectbox("Desde", lista_cuentas)
                 c_des = st.selectbox("Hacia", lista_cuentas)
                 cta = c_ori; cat = "Transferencia"
             else:
                 cta = st.selectbox("Cuenta", lista_cuentas)
-                if "Gasto" in op:
-                    cat = st.selectbox("Categoría", list(presupuestos_dict.keys())+["Otros", "Comida", "Taxi"])
-                else:
-                    cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo"])
+                if "Gasto" in op: cat = st.selectbox("Categoría", list(presupuestos_dict.keys())+["Otros", "Comida", "Taxi"])
+                else: cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo"])
             
             monto = st.number_input("Monto S/", min_value=0.01, format="%.2f")
             desc = st.text_input("Descripción")
-            
             st.write("")
             if st.form_submit_button("GUARDAR", use_container_width=True):
                 try:
@@ -298,13 +298,12 @@ with col_main_left:
                     limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
 
-# --- DERECHA: CUENTAS Y METAS ---
-with col_main_right:
-    # 3.1 CUENTAS
-    with st.container(border=True): # <--- CAJA BEIGE
+# --- DERECHA ---
+with col_der:
+    # CUENTAS
+    with st.container(border=True): # CAJA SÓLIDA
         ch1, ch2, ch3 = st.columns([4, 1, 1], vertical_alignment="bottom")
         ch1.markdown("### 💳 CUENTAS")
-        # Botones Imagen
         if ch2.button("⠀   ⠀", key="add", help="AGREGAR_IMG"): dialog_agregar_cuenta()
         if ch3.button("⠀   ⠀", key="del", help="ELIMINAR_IMG"): dialog_eliminar_cuenta(lista_cuentas)
         
@@ -338,12 +337,11 @@ with col_main_right:
 
     st.write("")
 
-    # 3.2 METAS
-    with st.container(border=True): # <--- CAJA BEIGE
+    # METAS
+    with st.container(border=True): # CAJA SÓLIDA
         st.markdown("### 🎯 METAS")
         if not df_f.empty: gas_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
         else: gas_cat = {}
-        
         cm1, cm2 = st.columns(2)
         idx_m = 0
         for cat, tope in presupuestos_dict.items():
@@ -355,40 +353,30 @@ with col_main_right:
                 st.caption(f"S/ {real:,.0f} de {tope:,.0f}")
             idx_m += 1
 
-st.write("") 
+st.write("")
 
 # ==============================================================================
-# 4. PIE DE PÁGINA (MOVIMIENTOS | PAGOS PENDIENTES)
+# 4. PIE DE PÁGINA
 # ==============================================================================
 col_foot_left, col_foot_right = st.columns([1.5, 1], gap="medium")
 
-# --- MOVIMIENTOS ---
 with col_foot_left:
-    with st.container(border=True): # <--- CAJA BEIGE
+    with st.container(border=True): # CAJA SÓLIDA
         st.markdown("### 📜 MOVIMIENTOS")
         if not df_f.empty:
             st.dataframe(
                 df_f[['Fecha', 'Cuenta', 'Categoria', 'Monto', 'Descripcion']].sort_values('Fecha', ascending=False),
-                use_container_width=True,
-                hide_index=True,
-                height=300
+                use_container_width=True, hide_index=True, height=300
             )
             if st.button("Borrar Último Reg"):
                 rows = len(ws_registro.get_all_values())
-                if rows > 1:
-                    ws_registro.delete_rows(rows); limpiar_cache(); st.success("Borrado"); st.rerun()
-        else:
-            st.info("Sin datos este mes.")
+                if rows > 1: ws_registro.delete_rows(rows); limpiar_cache(); st.success("Borrado"); st.rerun()
+        else: st.info("Sin datos este mes.")
 
-# --- PAGOS PENDIENTES ---
 with col_foot_right:
-    with st.container(border=True): # <--- CAJA BEIGE
+    with st.container(border=True): # CAJA SÓLIDA
         st.markdown("### ⏰ PAGOS PENDIENTES")
         st.info("Próximos vencimientos:")
-        st.markdown("""
-        - 📅 **Luz del Sur:** 15/Feb (S/ 120.00)
-        - 📅 **Internet:** 20/Feb (S/ 89.00)
-        - 📅 **Netflix:** 28/Feb (S/ 45.00)
-        """)
-        st.text_input("Agregar recordatorio rápido:")
+        st.markdown("- 📅 **Luz del Sur:** 15/Feb (S/ 120.00)\n- 📅 **Internet:** 20/Feb (S/ 89.00)")
+        st.text_input("Agregar recordatorio:")
         st.button("Añadir")
