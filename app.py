@@ -11,20 +11,20 @@ import math
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
 
-# --- CARGAR IMÁGENES (FUNCION HELPER) ---
+# --- CARGAR IMÁGENES (CON CONTROL DE ERRORES) ---
 def get_image_as_base64(file_path):
     try:
         with open(file_path, "rb") as f:
             data = f.read()
         return base64.b64encode(data).decode()
     except Exception:
-        return None
+        return "" # Retorna vacío si falla para no romper la app
 
-# Cargamos TODAS las imágenes necesarias
+# Cargamos las imágenes en memoria
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
-img_btn_agregar = get_image_as_base64("boton_agregar.png") # Tu imagen verde
-img_btn_eliminar = get_image_as_base64("boton_eliminar.png") # Tu imagen roja
+img_btn_agregar = get_image_as_base64("boton_agregar.png") 
+img_btn_eliminar = get_image_as_base64("boton_eliminar.png")
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -204,41 +204,90 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (IMÁGENES REALES + CENTRADO) 💳
+# 2. SECCIÓN CUENTAS (CONTENEDOR) 💳
 # =========================================================
 
-# Usamos un contenedor para aislar
 c_cont = st.container()
 
 with c_cont:
-    # Alineación vertical "bottom" para que los botones se alineen con el texto "CUENTAS"
+    # Alineación vertical "bottom" para alinear botones con el texto
     c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="bottom")
 
     with c1:
         st.subheader("CUENTAS")
     with c2:
-        # Botón AGREGAR con espacio vacío como texto. El CSS pondrá la imagen de fondo.
-        # Usamos key="btn_agregar_img" para identificarlo en CSS si fuera necesario, 
-        # pero usaremos selectores de columna que son más fuertes.
-        if st.button(" ", key="btn_agregar_img", use_container_width=True):
+        # Texto invisible para que el botón tenga tamaño pero muestre la imagen
+        if st.button("⠀   ⠀", key="btn_add_img", help="AGREGAR_IMG"):
             dialog_agregar_cuenta()
     with c3:
-        # Botón ELIMINAR con espacio vacío
-        if st.button(" ", key="btn_eliminar_img", use_container_width=True):
+        if st.button("⠀   ⠀", key="btn_del_img", help="ELIMINAR_IMG"):
             dialog_eliminar_cuenta(lista_cuentas)
 
-    # --- CSS MAESTRO (IMÁGENES DE FONDO Y CENTRADO) ---
+    # --- CSS MAESTRO CORREGIDO ---
     st.markdown(f"""
     <style>
-        /* 1. ANIMACIÓN DE APARICIÓN SUAVE (FADE IN) */
+        /* 1. BOTÓN AGREGAR (IMAGEN DE FONDO) */
+        /* Buscamos por el tooltip (help) que es único */
+        div.stButton > button[title="AGREGAR_IMG"] {{
+            background-image: url("data:image/png;base64,{img_btn_agregar}");
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent !important;
+            border: none !important;
+            height: 45px; /* Altura forzada para ver la imagen */
+            width: 100%;
+            box-shadow: none !important;
+        }}
+        div.stButton > button[title="AGREGAR_IMG"]:hover {{
+            transform: scale(1.05);
+        }}
+
+        /* 2. BOTÓN ELIMINAR (IMAGEN DE FONDO) */
+        div.stButton > button[title="ELIMINAR_IMG"] {{
+            background-image: url("data:image/png;base64,{img_btn_eliminar}");
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent !important;
+            border: none !important;
+            height: 45px;
+            width: 100%;
+            box-shadow: none !important;
+        }}
+        div.stButton > button[title="ELIMINAR_IMG"]:hover {{
+            transform: scale(1.05);
+        }}
+
+        /* 3. BOTONES FLECHA (Carrusel) - COLOR CAPIBARA */
+        /* Seleccionamos botones con texto flecha */
+        div.stButton > button:has(p:contains('◀')),
+        div.stButton > button:has(p:contains('▶')) {{
+            background-color: #8B4513 !important; /* Marrón Capibara */
+            border: 2px solid #5e2f0d !important;
+            color: white !important;
+            border-radius: 50% !important;
+            width: 45px !important;
+            height: 45px !important;
+            padding: 0px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: auto 0; /* Centrado extra */
+        }}
+        div.stButton > button:has(p:contains('◀')):hover,
+        div.stButton > button:has(p:contains('▶')):hover {{
+             background-color: #A0522D !important;
+             transform: scale(1.1);
+        }}
+
+        /* 4. ESTILOS TARJETA (ANIMACIÓN FADE IN) */
         @keyframes fadeIn {{
             from {{ opacity: 0; }}
             to {{ opacity: 1; }}
         }}
-
-        /* 2. ESTILOS TARJETA */
         .tarjeta-capigastos {{
-            animation: fadeIn 0.8s ease-in-out; /* Animación suave */
+            animation: fadeIn 0.8s ease-in-out;
             border-radius: 15px;
             padding: 20px;
             color: white;
@@ -253,66 +302,6 @@ with c_cont:
         .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }}
         .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
 
-        /* 3. BOTÓN AGREGAR -> REEMPLAZO POR IMAGEN */
-        /* Apuntamos al botón en la 2da columna */
-        div[data-testid="column"]:nth-of-type(2) div.stButton > button {{
-            background-image: url("data:image/png;base64,{img_btn_agregar}");
-            background-size: contain; /* Ajustar imagen al botón */
-            background-repeat: no-repeat;
-            background-position: center;
-            background-color: transparent !important; /* Fondo transparente */
-            border: none !important;
-            box-shadow: none !important;
-            height: 50px; /* Altura forzada para ver la imagen */
-            transition: transform 0.2s;
-        }}
-        div[data-testid="column"]:nth-of-type(2) div.stButton > button:hover {{
-            transform: scale(1.05);
-            background-color: transparent !important;
-        }}
-        div[data-testid="column"]:nth-of-type(2) div.stButton > button:active {{
-            transform: scale(0.95);
-        }}
-
-        /* 4. BOTÓN ELIMINAR -> REEMPLAZO POR IMAGEN */
-        /* Apuntamos al botón en la 3era columna */
-        div[data-testid="column"]:nth-of-type(3) div.stButton > button {{
-            background-image: url("data:image/png;base64,{img_btn_eliminar}");
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            height: 50px;
-            transition: transform 0.2s;
-        }}
-        div[data-testid="column"]:nth-of-type(3) div.stButton > button:hover {{
-            transform: scale(1.05);
-            background-color: transparent !important;
-        }}
-
-        /* 5. BOTONES FLECHA (Carrusel) - CENTRADO AUTOMÁTICO */
-        /* Buscamos botones con flechas */
-        div.stButton > button:has(p:contains('◀')),
-        div.stButton > button:has(p:contains('▶')) {{
-            background-color: #8B4513 !important;
-            border: 2px solid #5e2f0d !important;
-            color: white !important;
-            border-radius: 50% !important;
-            width: 45px !important;
-            height: 45px !important;
-            padding: 0px !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        div.stButton > button:has(p:contains('◀')):hover,
-        div.stButton > button:has(p:contains('▶')):hover {{
-             background-color: #A0522D !important;
-             transform: scale(1.1);
-        }}
-
     </style>
     """, unsafe_allow_html=True)
 
@@ -325,8 +314,8 @@ with c_cont:
     total_cuentas = len(lista_cuentas)
     total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
 
-    # Layout Carrusel: Flecha | Tarjetas | Flecha
-    # IMPORTANTE: vertical_alignment="center" AQUÍ ES LA CLAVE PARA QUE LAS FLECHAS ESTÉN EN MEDIO
+    # Layout Carrusel: Centrado Vertical
+    # IMPORTANTE: vertical_alignment="center" alinea las flechas al medio de las tarjetas
     col_nav_izq, col_tarjetas, col_nav_der = st.columns([1, 12, 1], vertical_alignment="center")
 
     with col_nav_izq:
