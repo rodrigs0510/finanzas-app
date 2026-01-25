@@ -1,6 +1,10 @@
+body {
+    border: 10px solid red;
+}
 .stApp {
     background-image: url("assets/imagenes/fondo.jpg");
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
 }
+
