@@ -89,6 +89,7 @@ def limpiar_cache():
 @st.dialog("Agregar Nueva Cuenta")
 def dialog_agregar_cuenta():
     nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
+    # Botón dentro del modal (se verá verde también por CSS)
     if st.button("Crear Cuenta"):
         if nombre_cuenta:
             ws_cuentas.append_row([nombre_cuenta])
@@ -105,8 +106,8 @@ def dialog_eliminar_cuenta(lista_actual):
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
-    # Usamos help="ELIMINAR_ACCION" para que el CSS lo detecte y lo ponga rojo
-    if col_d1.button("Sí, Eliminar", help="ELIMINAR_ACCION"):
+    # Botón dentro del modal (se verá rojo por CSS)
+    if col_d1.button("Sí, Eliminar"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
             ws_cuentas.delete_rows(cell.row)
@@ -202,170 +203,171 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. CUENTAS (CARRUSEL + BOTONES REALES) 💳
+# 2. SECCIÓN CUENTAS (CARRUSEL ALINEADO + COLORES FIJOS) 💳
 # =========================================================
-# Alineación vertical centrada
-c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1], vertical_alignment="center")
 
-with c_titulo_cta:
-    st.subheader("CUENTAS")
-with c_btn_add:
-    # help="AGREGAR" es la clave para que el CSS lo pinte de VERDE
-    if st.button("Agregar", key="btn_add_main", help="AGREGAR", use_container_width=True):
-        dialog_agregar_cuenta()
-with c_btn_del:
-    # help="ELIMINAR" es la clave para que el CSS lo pinte de ROJO
-    if st.button("Eliminar", key="btn_del_main", help="ELIMINAR", use_container_width=True):
-        dialog_eliminar_cuenta(lista_cuentas)
+# Usamos un contenedor para aislar los estilos de esta sección
+cuentas_container = st.container()
 
-# --- CSS DEFINITIVO (COLORES, ALINEACIÓN, ANIMACIÓN) ---
-st.markdown("""
-<style>
-    /* 1. ANIMACIÓN DE ENTRADA (FADE IN + SLIDE UP) */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translate3d(0, 20px, 0);
+with cuentas_container:
+    # Alineación vertical centrada
+    c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1], vertical_alignment="center")
+
+    with c_titulo_cta:
+        st.subheader("CUENTAS")
+    with c_btn_add:
+        # Clave específica para el CSS
+        st.button("Agregar", key="btn_add_main", use_container_width=True)
+    with c_btn_del:
+        # Clave específica para el CSS
+        st.button("Eliminar", key="btn_del_main", use_container_width=True)
+
+    # --- CSS AGRESIVO PARA FORZAR COLORES ---
+    st.markdown("""
+    <style>
+        /* 1. BOTÓN AGREGAR (VERDE) 
+           Buscamos el botón que tiene el texto 'Agregar' dentro */
+        div.stButton > button:has(div p:contains('Agregar')),
+        div.stButton > button:has(p:contains('Agregar')) {
+            background-color: #9ACD32 !important; /* Verde hoja */
+            border: 2px solid #556B2F !important;
+            color: #2F4F4F !important;
+            border-radius: 25px !important;
+            padding: 5px 15px !important;
         }
-        to {
-            opacity: 1;
-            transform: translate3d(0, 0, 0);
+        div.stButton > button:has(div p:contains('Agregar')):hover {
+            background-color: #ADFF2F !important;
+            transform: scale(1.02);
+            color: black !important;
         }
-    }
 
-    /* 2. ESTILOS DE LA TARJETA (CON ANIMACIÓN APLICADA) */
-    .tarjeta-capigastos {
-        animation: fadeInUp 0.6s ease-out; /* AQUI ESTA LA ANIMACION */
-        border-radius: 15px;
-        padding: 20px;
-        color: white;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 15px 0 rgba(0,0,0,0.4);
-        position: relative;
-        height: 220px;
-        background-size: 100% 100%; 
-        background-position: center;
-        transition: transform 0.3s ease;
-    }
-    
-    /* Efecto al pasar el mouse por la tarjeta */
-    .tarjeta-capigastos:hover {
-        transform: scale(1.02);
-    }
+        /* 2. BOTÓN ELIMINAR (ROJO) 
+           Buscamos el botón que tiene el texto 'Eliminar' dentro */
+        div.stButton > button:has(div p:contains('Eliminar')),
+        div.stButton > button:has(p:contains('Eliminar')) {
+            background-color: #FA8072 !important; /* Salmón / Rojo suave */
+            border: 2px solid #B22222 !important;
+            color: #800000 !important;
+            border-radius: 25px !important;
+            padding: 5px 15px !important;
+        }
+        div.stButton > button:has(div p:contains('Eliminar')):hover {
+            background-color: #FF6347 !important;
+            transform: scale(1.02);
+            color: black !important;
+        }
 
-    /* Textos y Barras */
-    .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
-    .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
-    .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
-
-    /* 3. ESTILOS DE BOTONES "INFALIBLES" USANDO ATRIBUTO TITLE (HELP) */
-    div.stButton > button {
-        background-color: #8B4513; /* Marrón por defecto */
-        color: white;
-        border: 2px solid #5e2f0d;
-        border-radius: 30px; /* Bien redondos */
-        padding: 5px 15px;   /* Delgados */
-        font-weight: bold;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        transition: all 0.2s;
-    }
-    
-    /* BOTÓN VERDE (AGREGAR) - Detecta el tooltip "AGREGAR" */
-    div.stButton > button[title="AGREGAR"] {
-        background-color: #9ACD32 !important; /* Verde Hoja */
-        border-color: #556B2F !important;
-        color: #2F4F4F !important;
-    }
-    div.stButton > button[title="AGREGAR"]:hover {
-        background-color: #ADFF2F !important;
-        transform: scale(1.05);
-    }
-
-    /* BOTÓN ROJO (ELIMINAR) - Detecta el tooltip "ELIMINAR" */
-    div.stButton > button[title="ELIMINAR"], 
-    div.stButton > button[title="ELIMINAR_ACCION"] {
-        background-color: #FA8072 !important; /* Rojo Salmón */
-        border-color: #B22222 !important;
-        color: #800000 !important;
-    }
-    div.stButton > button[title="ELIMINAR"]:hover,
-    div.stButton > button[title="ELIMINAR_ACCION"]:hover {
-        background-color: #FF6347 !important;
-        transform: scale(1.05);
-    }
-
-</style>
-""", unsafe_allow_html=True)
-
-# --- LÓGICA DE CARRUSEL (PAGINACIÓN) ---
-TARJETAS_POR_PAGINA = 2 
-
-if 'pagina_cuentas' not in st.session_state:
-    st.session_state.pagina_cuentas = 0
-
-total_cuentas = len(lista_cuentas)
-total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
-
-# Navegación del Carrusel
-col_nav_izq, col_tarjetas, col_nav_der = st.columns([0.5, 8, 0.5], vertical_alignment="center")
-
-with col_nav_izq:
-    if st.button("◀", key="prev_page"):
-        if st.session_state.pagina_cuentas > 0:
-            st.session_state.pagina_cuentas -= 1
-            st.rerun()
-
-with col_nav_der:
-    if st.button("▶", key="next_page"):
-        if st.session_state.pagina_cuentas < total_paginas - 1:
-            st.session_state.pagina_cuentas += 1
-            st.rerun()
-
-# Mostrar Tarjetas
-with col_tarjetas:
-    start_idx = st.session_state.pagina_cuentas * TARJETAS_POR_PAGINA
-    end_idx = start_idx + TARJETAS_POR_PAGINA
-    cuentas_pagina = lista_cuentas[start_idx:end_idx]
-    
-    cols_display = st.columns(TARJETAS_POR_PAGINA)
-    
-    for i, cuenta in enumerate(cuentas_pagina):
-        # Lógica de saldo
-        if not df.empty:
-            ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-            gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-            saldo_d = ingresos_h - gastos_h
-        else:
-            ingresos_h, gastos_h, saldo_d = 0, 0, 0
-
-        pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100 if ingresos_h > 0 else 0
-        bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
-
-        html = f"""
-        <div class="tarjeta-capigastos" style="{bg}">
-            <div style="position: absolute; top: 20px; left: 20px;">
-                <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
-                <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
-            </div>
-            <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
-                <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
-                <div class="texto-sombra" style="font-size: 24px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
-            </div>
-            <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
-                <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
-                    <span>⬇ Ing: {ingresos_h:,.0f}</span>
-                    <span style="color: #ffcccb;">⬆ Gas: {gastos_h:,.0f}</span>
-                </div>
-                <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
-                <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Disp.</div>
-            </div>
-        </div>
-        """
+        /* 3. BOTONES DE NAVEGACIÓN (FLECHAS) - CENTRADO VERTICAL */
+        /* Seleccionamos los botones que solo tienen flechas */
+        div.stButton > button:has(p:contains('◀')),
+        div.stButton > button:has(p:contains('▶')) {
+            background-color: #8B4513 !important; /* Marrón */
+            border: 2px solid #5e2f0d !important;
+            color: white !important;
+            border-radius: 50% !important; /* Redondos */
+            width: 40px !important;
+            height: 40px !important;
+            padding: 0px !important;
+            line-height: 0px !important;
+            margin-top: 90px !important; /* <--- AQUÍ ESTÁ EL TRUCO PARA BAJARLAS AL CENTRO */
+        }
         
-        # Manejo de columnas dinámico si quedan espacios vacíos
-        if i < len(cols_display):
-            with cols_display[i]:
-                st.markdown(html, unsafe_allow_html=True)
+        div.stButton > button:has(p:contains('◀')):hover,
+        div.stButton > button:has(p:contains('▶')):hover {
+             background-color: #A0522D !important;
+             transform: scale(1.1);
+        }
+
+        /* 4. ESTILOS TARJETA (ANIMADA) */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .tarjeta-capigastos {
+            animation: fadeIn 0.5s ease-out;
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4);
+            position: relative;
+            height: 220px;
+            background-size: 100% 100%; 
+            background-position: center;
+        }
+        .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+        .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
+        .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- LÓGICA DE CARRUSEL ---
+    TARJETAS_POR_PAGINA = 2 
+
+    if 'pagina_cuentas' not in st.session_state:
+        st.session_state.pagina_cuentas = 0
+
+    total_cuentas = len(lista_cuentas)
+    total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
+
+    # Navegación y Tarjetas
+    # Usamos alineación "top" porque bajaremos las flechas manualmente con CSS
+    col_nav_izq, col_tarjetas, col_nav_der = st.columns([0.5, 8, 0.5], vertical_alignment="top")
+
+    with col_nav_izq:
+        if st.button("◀", key="prev_page"):
+            if st.session_state.pagina_cuentas > 0:
+                st.session_state.pagina_cuentas -= 1
+                st.rerun()
+
+    with col_nav_der:
+        if st.button("▶", key="next_page"):
+            if st.session_state.pagina_cuentas < total_paginas - 1:
+                st.session_state.pagina_cuentas += 1
+                st.rerun()
+
+    with col_tarjetas:
+        start_idx = st.session_state.pagina_cuentas * TARJETAS_POR_PAGINA
+        end_idx = start_idx + TARJETAS_POR_PAGINA
+        cuentas_pagina = lista_cuentas[start_idx:end_idx]
+        
+        cols_display = st.columns(TARJETAS_POR_PAGINA)
+        
+        for i, cuenta in enumerate(cuentas_pagina):
+            # Lógica
+            if not df.empty:
+                ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+                gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+                saldo_d = ingresos_h - gastos_h
+            else:
+                ingresos_h, gastos_h, saldo_d = 0, 0, 0
+
+            pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100 if ingresos_h > 0 else 0
+            bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
+
+            html = f"""
+            <div class="tarjeta-capigastos" style="{bg}">
+                <div style="position: absolute; top: 20px; left: 20px;">
+                    <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
+                    <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
+                </div>
+                <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
+                    <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
+                    <div class="texto-sombra" style="font-size: 24px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
+                </div>
+                <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
+                        <span>⬇ Ing: {ingresos_h:,.0f}</span>
+                        <span style="color: #ffcccb;">⬆ Gas: {gastos_h:,.0f}</span>
+                    </div>
+                    <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
+                    <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Disp.</div>
+                </div>
+            </div>
+            """
+            
+            if i < len(cols_display):
+                with cols_display[i]:
+                    st.markdown(html, unsafe_allow_html=True)
 
 st.divider()
 
@@ -454,3 +456,4 @@ with st.expander("Borrar Último"):
                     st.rerun()
             except Exception as e:
                 st.error(f"Error borrando: {e}")
+
