@@ -19,6 +19,8 @@ def get_image_as_base64(file_path):
     except Exception:
         return None
 
+# Cargamos TODOS los recursos gráficos
+img_fondo = get_image_as_base64("fondo.jpg")
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
 
@@ -118,6 +120,27 @@ def dialog_eliminar_cuenta(lista_actual):
     if col_d2.button("Cancelar"):
         st.rerun()
 
+# --- CSS: FONDO DE PANTALLA ---
+# Esto inyecta el fondo si la imagen existe
+if img_fondo:
+    st.markdown(f"""
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpg;base64,{img_fondo}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    /* Hacemos un poco transparente el contenedor principal para que se vea el fondo */
+    .block-container {{
+        background-color: rgba(255, 255, 255, 0.85); /* Fondo blanco semitransparente detrás del contenido */
+        border-radius: 20px;
+        padding: 2rem;
+        margin-top: 2rem;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- HEADER ---
 col_logo, col_titulo = st.columns([1, 4]) 
 with col_logo:
@@ -200,7 +223,7 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (GRID DE 3) 💳
+# 2. SECCIÓN CUENTAS (GRID DE 3 + FONDO) 💳
 # =========================================================
 
 c_cont = st.container()
@@ -220,7 +243,7 @@ with c_cont:
         if st.button("Eliminar", key="btn_del_main", use_container_width=True):
             dialog_eliminar_cuenta(lista_cuentas)
 
-    # --- CSS MAESTRO (BOTONES PASTILLA + GRID 3) ---
+    # --- CSS BOTONES Y TARJETAS ---
     st.markdown("""
     <style>
         /* ESTILOS BASE PARA BOTONES */
@@ -228,7 +251,7 @@ with c_cont:
             background-color: #8B4513;
             color: white;
             border: 2px solid #5e2f0d;
-            border-radius: 50px; /* FORMA DE PASTILLA */
+            border-radius: 50px; /* PASTILLA */
             padding: 5px 20px;
             font-weight: bold;
             box-shadow: 0 3px 5px rgba(0,0,0,0.3);
@@ -283,7 +306,7 @@ with c_cont:
     """, unsafe_allow_html=True)
 
     # --- GRID DE 3 COLUMNAS ---
-    cols_display = st.columns(3) # <-- AQUI CAMBIAMOS A 3
+    cols_display = st.columns(3)
     
     for i, cuenta in enumerate(lista_cuentas):
         # Lógica Saldos
@@ -318,7 +341,6 @@ with c_cont:
         </div>
         """
         
-        # Insertar en columna (módulo 3 para distribuir en 3 columnas)
         with cols_display[i % 3]: 
             st.markdown(html, unsafe_allow_html=True)
 
