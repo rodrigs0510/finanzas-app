@@ -9,6 +9,7 @@ def render_header():
     with col1:
         st.image(LOGO, width=150)
     with col2:
-        st.title("CAPIGASTOS 🐹")
+        st.title("CAPIGASTOS")
+
 
 
