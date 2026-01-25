@@ -89,7 +89,6 @@ def limpiar_cache():
 @st.dialog("Agregar Nueva Cuenta")
 def dialog_agregar_cuenta():
     nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
-    # Botón dentro del modal (se verá verde también por CSS)
     if st.button("Crear Cuenta"):
         if nombre_cuenta:
             ws_cuentas.append_row([nombre_cuenta])
@@ -106,8 +105,8 @@ def dialog_eliminar_cuenta(lista_actual):
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
-    # Botón dentro del modal (se verá rojo por CSS)
-    if col_d1.button("Sí, Eliminar"):
+    # Usamos una clave única para identificarlo luego
+    if col_d1.button("Sí, Eliminar", key="btn_confirm_delete"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
             ws_cuentas.delete_rows(cell.row)
@@ -203,86 +202,43 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (CARRUSEL ALINEADO + COLORES FIJOS) 💳
+# 2. SECCIÓN CUENTAS (CONTENEDOR AISLADO PARA CSS) 💳
 # =========================================================
 
-# Usamos un contenedor para aislar los estilos de esta sección
-cuentas_container = st.container()
+# Usamos un contenedor con una clase específica para el CSS
+c_cont = st.container()
 
-with cuentas_container:
-    # Alineación vertical centrada
-    c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1], vertical_alignment="center")
+with c_cont:
+    # Alineación vertical
+    c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="center")
 
-    with c_titulo_cta:
+    with c1:
         st.subheader("CUENTAS")
-    with c_btn_add:
-        # Clave específica para el CSS
+    with c2:
+        # ESTE ES EL BOTÓN AGREGAR (Columna 2)
         st.button("Agregar", key="btn_add_main", use_container_width=True)
-    with c_btn_del:
-        # Clave específica para el CSS
+    with c3:
+        # ESTE ES EL BOTÓN ELIMINAR (Columna 3)
         st.button("Eliminar", key="btn_del_main", use_container_width=True)
 
-    # --- CSS AGRESIVO PARA FORZAR COLORES ---
+    # --- CSS MAESTRO ---
     st.markdown("""
     <style>
-        /* 1. BOTÓN AGREGAR (VERDE) 
-           Buscamos el botón que tiene el texto 'Agregar' dentro */
-        div.stButton > button:has(div p:contains('Agregar')),
-        div.stButton > button:has(p:contains('Agregar')) {
-            background-color: #9ACD32 !important; /* Verde hoja */
-            border: 2px solid #556B2F !important;
-            color: #2F4F4F !important;
-            border-radius: 25px !important;
-            padding: 5px 15px !important;
-        }
-        div.stButton > button:has(div p:contains('Agregar')):hover {
-            background-color: #ADFF2F !important;
-            transform: scale(1.02);
-            color: black !important;
+        /* 1. ANIMACIÓN DESPLAZAMIENTO LATERAL (Slide Left) */
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px); /* Viene desde la derecha */
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
-        /* 2. BOTÓN ELIMINAR (ROJO) 
-           Buscamos el botón que tiene el texto 'Eliminar' dentro */
-        div.stButton > button:has(div p:contains('Eliminar')),
-        div.stButton > button:has(p:contains('Eliminar')) {
-            background-color: #FA8072 !important; /* Salmón / Rojo suave */
-            border: 2px solid #B22222 !important;
-            color: #800000 !important;
-            border-radius: 25px !important;
-            padding: 5px 15px !important;
-        }
-        div.stButton > button:has(div p:contains('Eliminar')):hover {
-            background-color: #FF6347 !important;
-            transform: scale(1.02);
-            color: black !important;
-        }
-
-        /* 3. BOTONES DE NAVEGACIÓN (FLECHAS) - CENTRADO VERTICAL */
-        /* Seleccionamos los botones que solo tienen flechas */
-        div.stButton > button:has(p:contains('◀')),
-        div.stButton > button:has(p:contains('▶')) {
-            background-color: #8B4513 !important; /* Marrón */
-            border: 2px solid #5e2f0d !important;
-            color: white !important;
-            border-radius: 50% !important; /* Redondos */
-            width: 40px !important;
-            height: 40px !important;
-            padding: 0px !important;
-            line-height: 0px !important;
-            margin-top: 90px !important; /* <--- AQUÍ ESTÁ EL TRUCO PARA BAJARLAS AL CENTRO */
-        }
-        
-        div.stButton > button:has(p:contains('◀')):hover,
-        div.stButton > button:has(p:contains('▶')):hover {
-             background-color: #A0522D !important;
-             transform: scale(1.1);
-        }
-
-        /* 4. ESTILOS TARJETA (ANIMADA) */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
+        /* 2. ESTILOS TARJETA */
         .tarjeta-capigastos {
-            animation: fadeIn 0.5s ease-out;
+            animation: slideInRight 0.4s ease-out; /* Animación aplicada */
             border-radius: 15px;
             padding: 20px;
             color: white;
@@ -297,6 +253,55 @@ with cuentas_container:
         .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
         .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
 
+        /* 3. FUERZA BRUTA PARA COLORES DE BOTONES */
+        
+        /* BOTÓN AGREGAR (Verde, Letra Negra) - Identificado por estar en la columna correspondiente */
+        div[data-testid="column"]:nth-of-type(2) div.stButton > button {
+            background-color: #9ACD32 !important; /* Verde Hoja */
+            border: 2px solid #556B2F !important;
+            color: black !important; /* Letra Negra */
+            font-weight: 800 !important;
+        }
+        div[data-testid="column"]:nth-of-type(2) div.stButton > button:hover {
+            background-color: #ADFF2F !important;
+            transform: scale(1.05);
+        }
+
+        /* BOTÓN ELIMINAR (Rojo, Letra Negra) - Identificado por estar en la columna correspondiente */
+        div[data-testid="column"]:nth-of-type(3) div.stButton > button {
+            background-color: #FA8072 !important; /* Rojo Salmón */
+            border: 2px solid #B22222 !important;
+            color: black !important; /* Letra Negra */
+            font-weight: 800 !important;
+        }
+        div[data-testid="column"]:nth-of-type(3) div.stButton > button:hover {
+            background-color: #FF6347 !important;
+            transform: scale(1.05);
+        }
+
+        /* 4. BOTONES FLECHA (Carrusel) */
+        /* Buscamos botones que contengan la flecha y aplicamos estilos */
+        div.stButton > button:has(p:contains('◀')),
+        div.stButton > button:has(p:contains('▶')) {
+            background-color: #8B4513 !important; /* Marrón original */
+            border: 2px solid #5e2f0d !important;
+            color: white !important;
+            border-radius: 50% !important;
+            width: 45px !important;
+            height: 45px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 !important;
+            margin-top: 90px !important; /* BAJAMOS EL BOTÓN AL CENTRO */
+        }
+        
+        div.stButton > button:has(p:contains('◀')):hover,
+        div.stButton > button:has(p:contains('▶')):hover {
+             background-color: #A0522D !important;
+             transform: scale(1.1);
+        }
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -309,9 +314,8 @@ with cuentas_container:
     total_cuentas = len(lista_cuentas)
     total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
 
-    # Navegación y Tarjetas
-    # Usamos alineación "top" porque bajaremos las flechas manualmente con CSS
-    col_nav_izq, col_tarjetas, col_nav_der = st.columns([0.5, 8, 0.5], vertical_alignment="top")
+    # Layout Carrusel: Flecha | Tarjetas | Flecha
+    col_nav_izq, col_tarjetas, col_nav_der = st.columns([1, 12, 1], vertical_alignment="top")
 
     with col_nav_izq:
         if st.button("◀", key="prev_page"):
@@ -456,4 +460,3 @@ with st.expander("Borrar Último"):
                     st.rerun()
             except Exception as e:
                 st.error(f"Error borrando: {e}")
-
