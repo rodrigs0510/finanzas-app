@@ -4,6 +4,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
+import pytz  # Agregado para hora Perú
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Finanzas R&K", layout="centered", page_icon="💰")
@@ -31,8 +32,6 @@ except Exception as e:
     st.stop()
 
 # --- FUNCIONES BLINDADAS (RETRY LOGIC) ---
-# Esta función intenta bajar datos. Si falla por límite (429), espera y reintenta.
-
 def intento_seguro(funcion_gspread):
     """Intenta ejecutar una función de GSheet hasta 3 veces si da error de API"""
     max_retries = 3
@@ -40,17 +39,15 @@ def intento_seguro(funcion_gspread):
         try:
             return funcion_gspread()
         except gspread.exceptions.APIError as e:
-            if i == max_retries - 1: # Si es el último intento, fallamos
+            if i == max_retries - 1:
                 raise e
-            time.sleep(2 * (i + 1)) # Espera 2s, luego 4s... (Backoff)
+            time.sleep(2 * (i + 1))
         except Exception as e:
             raise e
 
 @st.cache_data(ttl=60)
 def obtener_datos():
-    # Usamos una función lambda para pasar la acción a nuestro "reintentador"
     data = intento_seguro(lambda: ws_registro.get_all_records())
-    
     columnas = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     if not data:
         df = pd.DataFrame(columns=columnas)
@@ -102,7 +99,9 @@ with st.sidebar:
 # --- APP PRINCIPAL ---
 st.title("💰 Finanzas Rodrigo & Krys")
 
-# Carga segura
+# ZONA HORARIA PERÚ
+zona_peru = pytz.timezone('America/Lima')
+
 try:
     df = obtener_datos()
     lista_cuentas = obtener_cuentas()
@@ -118,7 +117,7 @@ with st.container(border=True):
     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
     
-    now = datetime.now()
+    now = datetime.now(zona_peru) # Usamos hora Perú para el default
     mes_nom = c1.selectbox("Mes", meses, index=now.month-1)
     anio = c2.number_input("Año", value=now.year, min_value=2024, max_value=2030)
     mes_idx = meses.index(mes_nom) + 1
@@ -217,8 +216,9 @@ with st.form("op_form", clear_on_submit=True):
     
     if st.form_submit_button("Guardar"):
         try:
-            now_str = datetime.now().strftime("%Y-%m-%d")
-            time_str = datetime.now().strftime("%H:%M:%S")
+            # HORA PERÚ
+            now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
+            time_str = datetime.now(zona_peru).strftime("%H:%M:%S")
             
             if op == "Transferencia 🔄":
                 if c_origen == c_dest:
@@ -241,7 +241,7 @@ with st.form("op_form", clear_on_submit=True):
                 time.sleep(1)
                 st.rerun()
         except Exception as e:
-            st.error(f"Error guardando (Intenta de nuevo en 1 min): {e}")
+            st.error(f"Error guardando: {e}")
 
 # 5. Borrar
 with st.expander("🗑️ Borrar Último"):
