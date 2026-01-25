@@ -200,13 +200,13 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (PASTILLAS Y GRID) 💳
+# 2. SECCIÓN CUENTAS (GRID DE 3) 💳
 # =========================================================
 
 c_cont = st.container()
 
 with c_cont:
-    # Alineación vertical "bottom" para alinear botones con el texto
+    # Alineación vertical "bottom"
     c1, c2, c3 = st.columns([2, 1, 1], vertical_alignment="bottom")
 
     with c1:
@@ -220,7 +220,7 @@ with c_cont:
         if st.button("Eliminar", key="btn_del_main", use_container_width=True):
             dialog_eliminar_cuenta(lista_cuentas)
 
-    # --- CSS MAESTRO (BOTONES PASTILLA) ---
+    # --- CSS MAESTRO (BOTONES PASTILLA + GRID 3) ---
     st.markdown("""
     <style>
         /* ESTILOS BASE PARA BOTONES */
@@ -235,25 +235,25 @@ with c_cont:
             transition: all 0.2s;
         }
 
-        /* 1. BOTÓN AGREGAR (VERDE) - Buscamos por texto */
+        /* 1. BOTÓN AGREGAR (VERDE) */
         div.stButton > button:has(div p:contains('Agregar')),
         div.stButton > button:has(p:contains('Agregar')) {
             background-color: #A2D149 !important; /* Verde claro vibrante */
             border: 2px solid #556B2F !important;
-            color: black !important; /* LETRA NEGRA */
+            color: black !important;
         }
         div.stButton > button:has(div p:contains('Agregar')):hover {
             background-color: #b0e050 !important;
             transform: scale(1.05);
         }
 
-        /* 2. BOTÓN ELIMINAR (ROJO) - Buscamos por texto */
+        /* 2. BOTÓN ELIMINAR (ROJO) */
         div.stButton > button:has(div p:contains('Eliminar')),
         div.stButton > button:has(div p:contains('Sí, Eliminar')),
         div.stButton > button:has(p:contains('Eliminar')) {
             background-color: #EA6B66 !important; /* Rojo suave */
             border: 2px solid #8B0000 !important;
-            color: black !important; /* LETRA NEGRA */
+            color: black !important;
         }
         div.stButton > button:has(div p:contains('Eliminar')):hover {
             background-color: #f77c77 !important;
@@ -282,8 +282,8 @@ with c_cont:
     </style>
     """, unsafe_allow_html=True)
 
-    # --- GRID DE TARJETAS (SIN CARRUSEL) ---
-    cols_display = st.columns(2) # Grid de 2 columnas simple
+    # --- GRID DE 3 COLUMNAS ---
+    cols_display = st.columns(3) # <-- AQUI CAMBIAMOS A 3
     
     for i, cuenta in enumerate(lista_cuentas):
         # Lógica Saldos
@@ -318,8 +318,8 @@ with c_cont:
         </div>
         """
         
-        # Insertar en columna (alternando izquierda/derecha)
-        with cols_display[i % 2]:
+        # Insertar en columna (módulo 3 para distribuir en 3 columnas)
+        with cols_display[i % 3]: 
             st.markdown(html, unsafe_allow_html=True)
 
 st.divider()
