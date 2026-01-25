@@ -11,7 +11,7 @@ import math
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
 
-# --- CARGAR IMÁGENES ---
+# --- CARGAR IMÁGENES (FUNCION HELPER) ---
 def get_image_as_base64(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -20,8 +20,11 @@ def get_image_as_base64(file_path):
     except Exception:
         return None
 
+# Cargamos TODAS las imágenes necesarias
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
+img_btn_agregar = get_image_as_base64("boton_agregar.png") # Tu imagen verde
+img_btn_eliminar = get_image_as_base64("boton_eliminar.png") # Tu imagen roja
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -105,8 +108,7 @@ def dialog_eliminar_cuenta(lista_actual):
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
-    # Usamos una clave única para identificarlo luego
-    if col_d1.button("Sí, Eliminar", key="btn_confirm_delete"):
+    if col_d1.button("Sí, Eliminar"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
             ws_cuentas.delete_rows(cell.row)
@@ -202,43 +204,41 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (CONTENEDOR AISLADO PARA CSS) 💳
+# 2. SECCIÓN CUENTAS (IMÁGENES REALES + CENTRADO) 💳
 # =========================================================
 
-# Usamos un contenedor con una clase específica para el CSS
+# Usamos un contenedor para aislar
 c_cont = st.container()
 
 with c_cont:
-    # Alineación vertical
-    c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="center")
+    # Alineación vertical "bottom" para que los botones se alineen con el texto "CUENTAS"
+    c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="bottom")
 
     with c1:
         st.subheader("CUENTAS")
     with c2:
-        # ESTE ES EL BOTÓN AGREGAR (Columna 2)
-        st.button("Agregar", key="btn_add_main", use_container_width=True)
+        # Botón AGREGAR con espacio vacío como texto. El CSS pondrá la imagen de fondo.
+        # Usamos key="btn_agregar_img" para identificarlo en CSS si fuera necesario, 
+        # pero usaremos selectores de columna que son más fuertes.
+        if st.button(" ", key="btn_agregar_img", use_container_width=True):
+            dialog_agregar_cuenta()
     with c3:
-        # ESTE ES EL BOTÓN ELIMINAR (Columna 3)
-        st.button("Eliminar", key="btn_del_main", use_container_width=True)
+        # Botón ELIMINAR con espacio vacío
+        if st.button(" ", key="btn_eliminar_img", use_container_width=True):
+            dialog_eliminar_cuenta(lista_cuentas)
 
-    # --- CSS MAESTRO ---
-    st.markdown("""
+    # --- CSS MAESTRO (IMÁGENES DE FONDO Y CENTRADO) ---
+    st.markdown(f"""
     <style>
-        /* 1. ANIMACIÓN DESPLAZAMIENTO LATERAL (Slide Left) */
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(50px); /* Viene desde la derecha */
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
+        /* 1. ANIMACIÓN DE APARICIÓN SUAVE (FADE IN) */
+        @keyframes fadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
 
         /* 2. ESTILOS TARJETA */
-        .tarjeta-capigastos {
-            animation: slideInRight 0.4s ease-out; /* Animación aplicada */
+        .tarjeta-capigastos {{
+            animation: fadeIn 0.8s ease-in-out; /* Animación suave */
             border-radius: 15px;
             padding: 20px;
             color: white;
@@ -248,59 +248,70 @@ with c_cont:
             height: 220px;
             background-size: 100% 100%; 
             background-position: center;
-        }
-        .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
-        .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
-        .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
+        }}
+        .texto-sombra {{ text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
+        .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }}
+        .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
 
-        /* 3. FUERZA BRUTA PARA COLORES DE BOTONES */
-        
-        /* BOTÓN AGREGAR (Verde, Letra Negra) - Identificado por estar en la columna correspondiente */
-        div[data-testid="column"]:nth-of-type(2) div.stButton > button {
-            background-color: #9ACD32 !important; /* Verde Hoja */
-            border: 2px solid #556B2F !important;
-            color: black !important; /* Letra Negra */
-            font-weight: 800 !important;
-        }
-        div[data-testid="column"]:nth-of-type(2) div.stButton > button:hover {
-            background-color: #ADFF2F !important;
+        /* 3. BOTÓN AGREGAR -> REEMPLAZO POR IMAGEN */
+        /* Apuntamos al botón en la 2da columna */
+        div[data-testid="column"]:nth-of-type(2) div.stButton > button {{
+            background-image: url("data:image/png;base64,{img_btn_agregar}");
+            background-size: contain; /* Ajustar imagen al botón */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent !important; /* Fondo transparente */
+            border: none !important;
+            box-shadow: none !important;
+            height: 50px; /* Altura forzada para ver la imagen */
+            transition: transform 0.2s;
+        }}
+        div[data-testid="column"]:nth-of-type(2) div.stButton > button:hover {{
             transform: scale(1.05);
-        }
+            background-color: transparent !important;
+        }}
+        div[data-testid="column"]:nth-of-type(2) div.stButton > button:active {{
+            transform: scale(0.95);
+        }}
 
-        /* BOTÓN ELIMINAR (Rojo, Letra Negra) - Identificado por estar en la columna correspondiente */
-        div[data-testid="column"]:nth-of-type(3) div.stButton > button {
-            background-color: #FA8072 !important; /* Rojo Salmón */
-            border: 2px solid #B22222 !important;
-            color: black !important; /* Letra Negra */
-            font-weight: 800 !important;
-        }
-        div[data-testid="column"]:nth-of-type(3) div.stButton > button:hover {
-            background-color: #FF6347 !important;
+        /* 4. BOTÓN ELIMINAR -> REEMPLAZO POR IMAGEN */
+        /* Apuntamos al botón en la 3era columna */
+        div[data-testid="column"]:nth-of-type(3) div.stButton > button {{
+            background-image: url("data:image/png;base64,{img_btn_eliminar}");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            height: 50px;
+            transition: transform 0.2s;
+        }}
+        div[data-testid="column"]:nth-of-type(3) div.stButton > button:hover {{
             transform: scale(1.05);
-        }
+            background-color: transparent !important;
+        }}
 
-        /* 4. BOTONES FLECHA (Carrusel) */
-        /* Buscamos botones que contengan la flecha y aplicamos estilos */
+        /* 5. BOTONES FLECHA (Carrusel) - CENTRADO AUTOMÁTICO */
+        /* Buscamos botones con flechas */
         div.stButton > button:has(p:contains('◀')),
-        div.stButton > button:has(p:contains('▶')) {
-            background-color: #8B4513 !important; /* Marrón original */
+        div.stButton > button:has(p:contains('▶')) {{
+            background-color: #8B4513 !important;
             border: 2px solid #5e2f0d !important;
             color: white !important;
             border-radius: 50% !important;
             width: 45px !important;
             height: 45px !important;
+            padding: 0px !important;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0 !important;
-            margin-top: 90px !important; /* BAJAMOS EL BOTÓN AL CENTRO */
-        }
-        
+        }}
         div.stButton > button:has(p:contains('◀')):hover,
-        div.stButton > button:has(p:contains('▶')):hover {
+        div.stButton > button:has(p:contains('▶')):hover {{
              background-color: #A0522D !important;
              transform: scale(1.1);
-        }
+        }}
 
     </style>
     """, unsafe_allow_html=True)
@@ -315,7 +326,8 @@ with c_cont:
     total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
 
     # Layout Carrusel: Flecha | Tarjetas | Flecha
-    col_nav_izq, col_tarjetas, col_nav_der = st.columns([1, 12, 1], vertical_alignment="top")
+    # IMPORTANTE: vertical_alignment="center" AQUÍ ES LA CLAVE PARA QUE LAS FLECHAS ESTÉN EN MEDIO
+    col_nav_izq, col_tarjetas, col_nav_der = st.columns([1, 12, 1], vertical_alignment="center")
 
     with col_nav_izq:
         if st.button("◀", key="prev_page"):
