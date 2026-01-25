@@ -4,10 +4,10 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
-import pytz  # Agregado para hora Perú
+import pytz 
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Finanzas R&K", layout="centered", page_icon="💰")
+st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="❤️")
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -31,9 +31,8 @@ except Exception as e:
     st.error("Error conectando a Google. Espera 1 minuto y recarga.")
     st.stop()
 
-# --- FUNCIONES BLINDADAS (RETRY LOGIC) ---
+# --- FUNCIONES BLINDADAS ---
 def intento_seguro(funcion_gspread):
-    """Intenta ejecutar una función de GSheet hasta 3 veces si da error de API"""
     max_retries = 3
     for i in range(max_retries):
         try:
@@ -74,8 +73,8 @@ def limpiar_cache():
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Configuración")
-    with st.expander("➕ Cuentas"):
+    st.header("Configuración") # Sin emojis raros
+    with st.expander("Cuentas"):
         nueva = st.text_input("Nueva Cuenta")
         if st.button("Crear"):
             if nueva:
@@ -85,7 +84,7 @@ with st.sidebar:
                 time.sleep(1)
                 st.rerun()
 
-    with st.expander("🎯 Presupuestos"):
+    with st.expander("Presupuestos"):
         n_cat = st.text_input("Categoría")
         n_tope = st.number_input("Tope", min_value=0)
         if st.button("Crear Meta"):
@@ -96,8 +95,20 @@ with st.sidebar:
                 time.sleep(1)
                 st.rerun()
 
-# --- APP PRINCIPAL ---
-st.title("💰 Finanzas Rodrigo & Krys")
+# --- HEADER CON LOGO (AQUÍ ESTÁ EL CAMBIO) ---
+# Usamos columnas para poner Logo a la izquierda y Título a la derecha
+col_logo, col_titulo = st.columns([1, 4]) # 1 parte logo, 4 partes título
+
+with col_logo:
+    # Intenta cargar 'logo.png'. Si no existe, no falla.
+    try:
+        st.image("logo.png", width=100) 
+    except:
+        st.write("🐹") # Placeholder si falta la imagen
+
+with col_titulo:
+    # TÍTULO LIMPIO (Sin emojis)
+    st.title("CAPIGASTOS")
 
 # ZONA HORARIA PERÚ
 zona_peru = pytz.timezone('America/Lima')
@@ -107,8 +118,8 @@ try:
     lista_cuentas = obtener_cuentas()
     presupuestos_dict = obtener_presupuestos()
 except Exception:
-    st.warning("⚠️ Tráfico alto en Google API. Esperando 5 segundos...")
-    time.sleep(5)
+    st.warning("Cargando datos...")
+    time.sleep(2)
     st.rerun()
 
 # Filtros Tiempo
@@ -117,7 +128,7 @@ with st.container(border=True):
     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
     
-    now = datetime.now(zona_peru) # Usamos hora Perú para el default
+    now = datetime.now(zona_peru)
     mes_nom = c1.selectbox("Mes", meses, index=now.month-1)
     anio = c2.number_input("Año", value=now.year, min_value=2024, max_value=2030)
     mes_idx = meses.index(mes_nom) + 1
@@ -140,7 +151,7 @@ for c in lista_cuentas:
 total_cap = sum(saldos.values())
 
 # 1. Resumen Mes
-st.subheader(f"📊 {mes_nom} {anio}")
+st.subheader(f"Resumen {mes_nom} {anio}")
 if not df_f.empty:
     ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum()
     gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum()
@@ -156,7 +167,7 @@ m3.metric("Ahorro", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" if ing_
 st.divider()
 
 # 2. Cuentas
-st.subheader(f"💳 Total Global: S/ {total_cap:.2f}")
+st.subheader(f"Total Global: S/ {total_cap:.2f}")
 cc = st.columns(3)
 ix = 0
 for c, s in saldos.items():
@@ -173,7 +184,7 @@ for c, s in saldos.items():
 st.divider()
 
 # 3. Metas
-st.subheader("🚦 Metas del Mes")
+st.subheader("Metas del Mes")
 if not df_f.empty:
     gastos_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
 else:
@@ -193,14 +204,14 @@ for cat, tope in presupuestos_dict.items():
 st.divider()
 
 # 4. Registro
-st.subheader("📝 Operación")
-op = st.radio("Tipo", ["Gasto 📤", "Ingreso 📥", "Transferencia 🔄"], horizontal=True)
+st.subheader("Operación")
+op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True) # Sin emojis
 
 with st.form("op_form", clear_on_submit=True):
     fc1, fc2 = st.columns(2)
     u = fc1.selectbox("Usuario", ["Rodrigo", "Krys"])
     
-    if op == "Transferencia 🔄":
+    if op == "Transferencia":
         c_origen = fc2.selectbox("Desde", lista_cuentas)
         c_dest = st.selectbox("Hacia", lista_cuentas)
         cat = "Transferencia"
@@ -216,11 +227,10 @@ with st.form("op_form", clear_on_submit=True):
     
     if st.form_submit_button("Guardar"):
         try:
-            # HORA PERÚ
             now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
             time_str = datetime.now(zona_peru).strftime("%H:%M:%S")
             
-            if op == "Transferencia 🔄":
+            if op == "Transferencia":
                 if c_origen == c_dest:
                     st.error("Cuentas iguales")
                 else:
@@ -244,7 +254,7 @@ with st.form("op_form", clear_on_submit=True):
             st.error(f"Error guardando: {e}")
 
 # 5. Borrar
-with st.expander("🗑️ Borrar Último"):
+with st.expander("Borrar Último"):
     if not df.empty:
         st.dataframe(df.sort_values("Fecha", ascending=False).head(3), use_container_width=True)
         if st.button("BORRAR"):
