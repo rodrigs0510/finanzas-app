@@ -63,22 +63,39 @@ def intento_seguro(funcion_gspread):
 
 @st.cache_data(ttl=60)
 def obtener_datos():
-    data = intento_seguro(lambda: ws_registro.get_all_records())
-    if not data: return pd.DataFrame(columns=['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion'])
-    df = pd.DataFrame(data)
-    df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
-    df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
-    return df
+    # Intentamos obtener datos, si falla o está vacío, devolvemos estructura vacía segura
+    try:
+        data = intento_seguro(lambda: ws_registro.get_all_records())
+        if not data: 
+            return pd.DataFrame(columns=['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion'])
+        
+        df = pd.DataFrame(data)
+        
+        # Asegurar columnas críticas
+        if 'Monto' not in df.columns: df['Monto'] = 0
+        if 'Fecha' not in df.columns: df['Fecha'] = ""
+        if 'Tipo' not in df.columns: df['Tipo'] = "Desconocido"
+        if 'Cuenta' not in df.columns: df['Cuenta'] = "Desconocido"
+
+        df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+        df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
+        return df
+    except:
+        return pd.DataFrame(columns=['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion'])
 
 @st.cache_data(ttl=600)
 def obtener_cuentas():
-    cuentas = intento_seguro(lambda: ws_cuentas.col_values(1))
-    return cuentas[1:] if len(cuentas) > 1 else ["Efectivo"]
+    try:
+        cuentas = intento_seguro(lambda: ws_cuentas.col_values(1))
+        return cuentas[1:] if len(cuentas) > 1 else ["Efectivo"]
+    except: return ["Efectivo"]
 
 @st.cache_data(ttl=600)
 def obtener_presupuestos():
-    records = intento_seguro(lambda: ws_presupuestos.get_all_records())
-    return {row['Categoria']: row['Tope_Mensual'] for row in records}
+    try:
+        records = intento_seguro(lambda: ws_presupuestos.get_all_records())
+        return {row['Categoria']: row['Tope_Mensual'] for row in records}
+    except: return {}
 
 def limpiar_cache(): st.cache_data.clear()
 
@@ -102,58 +119,110 @@ def dialog_eliminar_cuenta(lista_actual):
         limpiar_cache(); st.success("Eliminada"); time.sleep(1); st.rerun()
     if c2.button("Cancelar"): st.rerun()
 
-# --- CSS MAESTRO ---
+# --- CSS MAESTRO (SOLUCIÓN VISUAL COMPLETA) ---
 st.markdown(f"""
 <style>
-    /* FONDO */
+    /* 1. FONDO DE PANTALLA */
     .stApp {{
         background-image: url("data:image/jpg;base64,{img_fondo}");
-        background-size: cover; background-position: center top; background-attachment: fixed;
+        background-size: cover; 
+        background-position: center top; 
+        background-attachment: fixed;
     }}
-    /* CONTENEDOR CRISTAL */
+
+    /* 2. CONTENEDOR TIPO "CRISTAL" */
     .block-container {{
-        background-color: rgba(253, 245, 230, 0.92);
-        border-radius: 15px; padding: 2rem !important; margin-top: 20px;
+        background-color: rgba(253, 245, 230, 0.95); /* Beige casi sólido */
+        border-radius: 15px;
+        padding: 2rem !important;
+        margin-top: 20px;
         border: 2px solid #4A3B2A;
     }}
-    /* TEXTOS */
-    h1, h2, h3, p, span, label, .stMarkdown, .stMetricLabel, div[data-testid="stMetricValue"] {{
-        color: #4A3B2A !important; text-shadow: none !important;
+
+    /* 3. FORZAR COLOR DE TEXTO (IGNORAR MODO OSCURO) */
+    html, body, [class*="css"], h1, h2, h3, h4, p, span, label, div {{
+        color: #4A3B2A !important; 
+        font-family: sans-serif;
     }}
-    /* INPUTS */
-    .stTextInput input, .stNumberInput input, .stSelectbox div, div[data-baseweb="select"] {{
-        background-color: #FFFFFF !important; color: #000000 !important; border: 1px solid #4A3B2A !important;
+    
+    /* Excepción: Textos dentro de tarjetas o botones oscuros deben ser blancos/negros según corresponda */
+    .tarjeta-capigastos *, div.stButton > button * {{
+        color: inherit !important; 
     }}
-    /* BOTONES */
+
+    /* 4. INPUTS Y SELECTORES (LIMPIEZA DE BORDES FEOS) */
+    /* Input de Texto y Número */
+    .stTextInput input, .stNumberInput input {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border: 2px solid #4A3B2A !important;
+        border-radius: 10px !important;
+    }}
+    
+    /* Selectbox (El cuadro desplegable) */
+    div[data-baseweb="select"] > div {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border: 2px solid #4A3B2A !important;
+        border-radius: 10px !important;
+    }}
+    
+    /* Eliminar contornos de foco extraños de Streamlit */
+    .stSelectbox div:focus-within, .stTextInput div:focus-within {{
+        box-shadow: none !important;
+        border-color: #8B4513 !important;
+    }}
+
+    /* 5. BOTONES (PASTILLA Y COLORES) */
     div.stButton > button {{
-        background-color: #8B4513; color: white !important; border: 2px solid #5e2f0d;
-        border-radius: 50px; padding: 5px 20px; font-weight: bold; transition: all 0.2s;
+        background-color: #8B4513 !important;
+        color: white !important;
+        border: 2px solid #5e2f0d !important;
+        border-radius: 50px !important;
+        font-weight: bold !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2) !important;
     }}
+    
     /* Botón AGREGAR (Verde) */
     div.stButton > button:has(p:contains('Agregar')) {{
-        background-color: #A2D149 !important; border-color: #556B2F !important; color: black !important;
+        background-color: #A2D149 !important; 
+        border-color: #556B2F !important; 
+        color: black !important;
     }}
-    div.stButton > button:has(p:contains('Agregar')):hover {{ transform: scale(1.05); background-color: #b0e050 !important; }}
-    /* Botón ELIMINAR (Rojo) */
-    div.stButton > button:has(p:contains('Eliminar')), div.stButton > button:has(div p:contains('Sí, Eliminar')) {{
-        background-color: #EA6B66 !important; border-color: #8B0000 !important; color: black !important;
-    }}
-    div.stButton > button:has(p:contains('Eliminar')):hover {{ transform: scale(1.05); background-color: #f77c77 !important; }}
     
-    /* TARJETAS */
-    @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
-    .tarjeta-capigastos {{
-        animation: fadeIn 0.5s ease-out; border-radius: 15px; padding: 20px; color: white !important;
-        margin-bottom: 15px; box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4); position: relative;
-        height: 220px; background-size: 100% 100%; background-position: center;
+    /* Botón ELIMINAR (Rojo) */
+    div.stButton > button:has(p:contains('Eliminar')), 
+    div.stButton > button:has(div p:contains('Sí, Eliminar')) {{
+        background-color: #EA6B66 !important; 
+        border-color: #8B0000 !important; 
+        color: black !important;
     }}
-    .tarjeta-capigastos * {{ color: white !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important; }}
+
+    /* 6. TARJETAS */
+    .tarjeta-capigastos {{
+        border-radius: 15px;
+        padding: 20px;
+        color: white !important;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4);
+        position: relative;
+        height: 220px;
+        background-size: 100% 100%; 
+        background-position: center;
+    }}
+    /* Texto interno de tarjeta siempre blanco */
+    .tarjeta-capigastos div, .tarjeta-capigastos span {{
+        color: white !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }}
+    
     .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }}
     .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
+
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGICA DE DATOS ---
+# --- LOGICA ---
 zona_peru = pytz.timezone('America/Lima')
 try:
     df = obtener_datos()
@@ -162,19 +231,24 @@ try:
 except:
     st.warning("Cargando..."); time.sleep(1); st.rerun()
 
-# Calculos Globales
-ing_hist = df[df['Tipo']=='Ingreso']['Monto'].sum() if not df.empty else 0
-gas_hist = df[df['Tipo']=='Gasto']['Monto'].sum() if not df.empty else 0
-ahorro_vida = ing_hist - gas_hist
-saldo_actual = 0
-for c in lista_cuentas:
+# Calculos Globales Seguros
+try:
     if not df.empty:
-        i = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
-        g = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
-        saldo_actual += (i-g)
+        ing_hist = df[df['Tipo']=='Ingreso']['Monto'].sum()
+        gas_hist = df[df['Tipo']=='Gasto']['Monto'].sum()
+        ahorro_vida = ing_hist - gas_hist
+        saldo_actual = 0
+        for c in lista_cuentas:
+            i = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
+            g = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
+            saldo_actual += (i-g)
+    else:
+        ing_hist, gas_hist, ahorro_vida, saldo_actual = 0, 0, 0, 0
+except:
+    ing_hist, gas_hist, ahorro_vida, saldo_actual = 0, 0, 0, 0
 
 # ==============================================================================
-# FILA 1: HEADER SUPERIOR (LOGO + FILTROS + ESTADO GLOBAL)
+# FILA 1: HEADER
 # ==============================================================================
 c_brand, c_filt, c_kpi1, c_kpi2 = st.columns([1.5, 1.5, 1.5, 1.5], vertical_alignment="center")
 
@@ -203,31 +277,36 @@ with c_kpi2:
 st.markdown("---")
 
 # ==============================================================================
-# FILA 2: RESUMEN MENSUAL (CENTRADO)
+# FILA 2: RESUMEN MENSUAL
 # ==============================================================================
-# Filtrado de datos del mes
+# Filtrado de datos del mes (CON PROTECCIÓN CONTRA KEYERROR)
 if not df.empty and 'Fecha' in df.columns:
     df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == sel_anio)]
-else: df_f = pd.DataFrame()
+else: 
+    df_f = pd.DataFrame()
 
 ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
 gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
 bal_m = ing_m - gas_m
 
+# Conteo seguro de operaciones (FIX KEYERROR)
+ops_ing = len(df_f[df_f['Tipo']=='Ingreso']) if not df_f.empty and 'Tipo' in df_f.columns else 0
+ops_gas = len(df_f[df_f['Tipo']=='Gasto']) if not df_f.empty and 'Tipo' in df_f.columns else 0
+
 st.markdown(f"<h3 style='text-align: center;'>RESUMEN: {sel_mes.upper()} {sel_anio}</h3>", unsafe_allow_html=True)
 k1, k2, k3 = st.columns(3)
-k1.metric("Ingresos Mes", f"S/ {ing_m:,.2f}", f"{len(df_f[df_f['Tipo']=='Ingreso'])} ops")
-k2.metric("Gastos Mes", f"S/ {gas_m:,.2f}", f"{len(df_f[df_f['Tipo']=='Gasto'])} ops", delta_color="inverse")
+k1.metric("Ingresos Mes", f"S/ {ing_m:,.2f}", f"{ops_ing} ops")
+k2.metric("Gastos Mes", f"S/ {gas_m:,.2f}", f"{ops_gas} ops", delta_color="inverse")
 k3.metric("Ahorro Mes", f"S/ {bal_m:,.2f}", delta="Balance")
 
 st.markdown("---")
 
 # ==============================================================================
-# FILA 3: CUERPO PRINCIPAL (IZQUIERDA: REGISTRO | DERECHA: CUENTAS Y METAS)
+# FILA 3: CUERPO
 # ==============================================================================
-col_izq, col_der = st.columns([1, 2], gap="large") # 1/3 para registro, 2/3 para dashboard
+col_izq, col_der = st.columns([1, 2], gap="large")
 
-# --- COLUMNA IZQUIERDA: FORMULARIO DE REGISTRO ---
+# --- COLUMNA IZQUIERDA: REGISTRO ---
 with col_izq:
     st.subheader("📝 REGISTRO")
     with st.container(border=True):
@@ -270,7 +349,7 @@ with col_izq:
                         limpiar_cache(); st.success("Guardado OK"); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Error: {e}")
 
-# --- COLUMNA DERECHA: DASHBOARD (CUENTAS Y METAS) ---
+# --- COLUMNA DERECHA: DASHBOARD ---
 with col_der:
     # SECCIÓN CUENTAS
     c_tit, c_add, c_del = st.columns([4, 1, 1], vertical_alignment="bottom")
@@ -329,7 +408,7 @@ with col_der:
         idx_m += 1
 
 # ==============================================================================
-# FILA 4: HISTORIAL (ABAJO DE TODO)
+# FILA 4: HISTORIAL
 # ==============================================================================
 st.divider()
 st.subheader("📜 HISTORIAL DE MOVIMIENTOS")
