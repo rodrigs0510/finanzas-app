@@ -4,14 +4,12 @@ from layout.header import render_header
 from layout.registro import render_registro
 from layout.dashboard import render_dashboard
 
-# CONFIGURACIÓN GENERAL
 st.set_page_config(
     page_title="CAPIGASTOS",
     layout="wide",
     page_icon="❤️"
 )
 
-# FUNCIÓN PARA CARGAR IMAGEN DE FONDO
 def load_image_base64(path):
     try:
         with open(path, "rb") as f:
@@ -21,13 +19,23 @@ def load_image_base64(path):
 
 bg_fondo = load_image_base64("assets/images/fondo.jpg")
 
-# ESTILOS GENERALES
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
 
-html, body, [class*="css"] {{
-    font-family: 'Fredoka', sans-serif;
+/* RESET TOTAL */
+html, body {{
+    margin: 0;
+    padding: 0;
+}}
+
+.block-container {{
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+}}
+
+header {{
+    display: none;
 }}
 
 .stApp {{
@@ -35,24 +43,21 @@ html, body, [class*="css"] {{
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
+    font-family: 'Fredoka', sans-serif;
 }}
 
 .bloque-capigastos {{
     background-color: #FDF5E6;
     border: 2px solid #4A3B2A;
-    border-radius: 16px;
-    padding: 24px;
+    border-radius: 18px;
+    padding: 32px;
     margin: 24px;
     box-shadow: 6px 6px 0px rgba(0,0,0,0.25);
-}}
-
-header {{
-    visibility: hidden;
 }}
 </style>
 """, unsafe_allow_html=True)
 
-# CONTENEDOR PRINCIPAL (EL PAPEL)
+# BLOQUE ÚNICO (COMO EL BOCETO)
 st.markdown('<div class="bloque-capigastos">', unsafe_allow_html=True)
 
 render_header()
@@ -60,3 +65,4 @@ render_registro()
 render_dashboard()
 
 st.markdown('</div>', unsafe_allow_html=True)
+
