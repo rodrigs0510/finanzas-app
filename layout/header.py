@@ -7,6 +7,7 @@ LOGO = os.path.join(BASE_DIR, "assets", "images", "logo.png")
 def render_header():
     col1, col2 = st.columns([1, 5])
     with col1:
-        st.image(LOGO, width=80)
+        st.image(LOGO, width=130)
     with col2:
         st.title("CAPIGASTOS 🐹")
+
