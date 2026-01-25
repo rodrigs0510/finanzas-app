@@ -6,25 +6,21 @@ from datetime import datetime
 import time
 import pytz 
 import base64
-import math
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
 
-# --- CARGAR IMÁGENES (CON CONTROL DE ERRORES) ---
+# --- CARGAR IMÁGENES ---
 def get_image_as_base64(file_path):
     try:
         with open(file_path, "rb") as f:
             data = f.read()
         return base64.b64encode(data).decode()
     except Exception:
-        return "" # Retorna vacío si falla para no romper la app
+        return None
 
-# Cargamos las imágenes en memoria
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
 img_logo = get_image_as_base64("logo.png") 
-img_btn_agregar = get_image_as_base64("boton_agregar.png") 
-img_btn_eliminar = get_image_as_base64("boton_eliminar.png")
 
 # --- CONEXIÓN ---
 @st.cache_resource
@@ -204,175 +200,127 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. SECCIÓN CUENTAS (CONTENEDOR) 💳
+# 2. SECCIÓN CUENTAS (PASTILLAS Y GRID) 💳
 # =========================================================
 
 c_cont = st.container()
 
 with c_cont:
     # Alineación vertical "bottom" para alinear botones con el texto
-    c1, c2, c3 = st.columns([3, 1, 1], vertical_alignment="bottom")
+    c1, c2, c3 = st.columns([2, 1, 1], vertical_alignment="bottom")
 
     with c1:
         st.subheader("CUENTAS")
     with c2:
-        # Texto invisible para que el botón tenga tamaño pero muestre la imagen
-        if st.button("⠀   ⠀", key="btn_add_img", help="AGREGAR_IMG"):
+        # Botón AGREGAR
+        if st.button("Agregar", key="btn_add_main", use_container_width=True):
             dialog_agregar_cuenta()
     with c3:
-        if st.button("⠀   ⠀", key="btn_del_img", help="ELIMINAR_IMG"):
+        # Botón ELIMINAR
+        if st.button("Eliminar", key="btn_del_main", use_container_width=True):
             dialog_eliminar_cuenta(lista_cuentas)
 
-    # --- CSS MAESTRO CORREGIDO ---
-    st.markdown(f"""
+    # --- CSS MAESTRO (BOTONES PASTILLA) ---
+    st.markdown("""
     <style>
-        /* 1. BOTÓN AGREGAR (IMAGEN DE FONDO) */
-        /* Buscamos por el tooltip (help) que es único */
-        div.stButton > button[title="AGREGAR_IMG"] {{
-            background-image: url("data:image/png;base64,{img_btn_agregar}");
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-color: transparent !important;
-            border: none !important;
-            height: 45px; /* Altura forzada para ver la imagen */
-            width: 100%;
-            box-shadow: none !important;
-        }}
-        div.stButton > button[title="AGREGAR_IMG"]:hover {{
+        /* ESTILOS BASE PARA BOTONES */
+        div.stButton > button {
+            background-color: #8B4513;
+            color: white;
+            border: 2px solid #5e2f0d;
+            border-radius: 50px; /* FORMA DE PASTILLA */
+            padding: 5px 20px;
+            font-weight: bold;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+        }
+
+        /* 1. BOTÓN AGREGAR (VERDE) - Buscamos por texto */
+        div.stButton > button:has(div p:contains('Agregar')),
+        div.stButton > button:has(p:contains('Agregar')) {
+            background-color: #A2D149 !important; /* Verde claro vibrante */
+            border: 2px solid #556B2F !important;
+            color: black !important; /* LETRA NEGRA */
+        }
+        div.stButton > button:has(div p:contains('Agregar')):hover {
+            background-color: #b0e050 !important;
             transform: scale(1.05);
-        }}
+        }
 
-        /* 2. BOTÓN ELIMINAR (IMAGEN DE FONDO) */
-        div.stButton > button[title="ELIMINAR_IMG"] {{
-            background-image: url("data:image/png;base64,{img_btn_eliminar}");
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-color: transparent !important;
-            border: none !important;
-            height: 45px;
-            width: 100%;
-            box-shadow: none !important;
-        }}
-        div.stButton > button[title="ELIMINAR_IMG"]:hover {{
+        /* 2. BOTÓN ELIMINAR (ROJO) - Buscamos por texto */
+        div.stButton > button:has(div p:contains('Eliminar')),
+        div.stButton > button:has(div p:contains('Sí, Eliminar')),
+        div.stButton > button:has(p:contains('Eliminar')) {
+            background-color: #EA6B66 !important; /* Rojo suave */
+            border: 2px solid #8B0000 !important;
+            color: black !important; /* LETRA NEGRA */
+        }
+        div.stButton > button:has(div p:contains('Eliminar')):hover {
+            background-color: #f77c77 !important;
             transform: scale(1.05);
-        }}
+        }
 
-        /* 3. BOTONES FLECHA (Carrusel) - COLOR CAPIBARA */
-        /* Seleccionamos botones con texto flecha */
-        div.stButton > button:has(p:contains('◀')),
-        div.stButton > button:has(p:contains('▶')) {{
-            background-color: #8B4513 !important; /* Marrón Capibara */
-            border: 2px solid #5e2f0d !important;
-            color: white !important;
-            border-radius: 50% !important;
-            width: 45px !important;
-            height: 45px !important;
-            padding: 0px !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: auto 0; /* Centrado extra */
-        }}
-        div.stButton > button:has(p:contains('◀')):hover,
-        div.stButton > button:has(p:contains('▶')):hover {{
-             background-color: #A0522D !important;
-             transform: scale(1.1);
-        }}
-
-        /* 4. ESTILOS TARJETA (ANIMACIÓN FADE IN) */
-        @keyframes fadeIn {{
-            from {{ opacity: 0; }}
-            to {{ opacity: 1; }}
-        }}
-        .tarjeta-capigastos {{
-            animation: fadeIn 0.8s ease-in-out;
+        /* 3. ESTILOS TARJETA (ANIMACIÓN FADE IN) */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .tarjeta-capigastos {
+            animation: fadeIn 0.5s ease-out;
             border-radius: 15px;
             padding: 20px;
             color: white;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             box-shadow: 0 4px 12px 0 rgba(0,0,0,0.4);
             position: relative;
             height: 220px;
             background-size: 100% 100%; 
             background-position: center;
-        }}
-        .texto-sombra {{ text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
-        .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }}
-        .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
+        }
+        .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+        .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
+        .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
 
     </style>
     """, unsafe_allow_html=True)
 
-    # --- LÓGICA DE CARRUSEL ---
-    TARJETAS_POR_PAGINA = 2 
+    # --- GRID DE TARJETAS (SIN CARRUSEL) ---
+    cols_display = st.columns(2) # Grid de 2 columnas simple
+    
+    for i, cuenta in enumerate(lista_cuentas):
+        # Lógica Saldos
+        if not df.empty:
+            ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
+            gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
+            saldo_d = ingresos_h - gastos_h
+        else:
+            ingresos_h, gastos_h, saldo_d = 0, 0, 0
 
-    if 'pagina_cuentas' not in st.session_state:
-        st.session_state.pagina_cuentas = 0
+        pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100 if ingresos_h > 0 else 0
+        bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
 
-    total_cuentas = len(lista_cuentas)
-    total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
-
-    # Layout Carrusel: Centrado Vertical
-    # IMPORTANTE: vertical_alignment="center" alinea las flechas al medio de las tarjetas
-    col_nav_izq, col_tarjetas, col_nav_der = st.columns([1, 12, 1], vertical_alignment="center")
-
-    with col_nav_izq:
-        if st.button("◀", key="prev_page"):
-            if st.session_state.pagina_cuentas > 0:
-                st.session_state.pagina_cuentas -= 1
-                st.rerun()
-
-    with col_nav_der:
-        if st.button("▶", key="next_page"):
-            if st.session_state.pagina_cuentas < total_paginas - 1:
-                st.session_state.pagina_cuentas += 1
-                st.rerun()
-
-    with col_tarjetas:
-        start_idx = st.session_state.pagina_cuentas * TARJETAS_POR_PAGINA
-        end_idx = start_idx + TARJETAS_POR_PAGINA
-        cuentas_pagina = lista_cuentas[start_idx:end_idx]
-        
-        cols_display = st.columns(TARJETAS_POR_PAGINA)
-        
-        for i, cuenta in enumerate(cuentas_pagina):
-            # Lógica
-            if not df.empty:
-                ingresos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-                gastos_h = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-                saldo_d = ingresos_h - gastos_h
-            else:
-                ingresos_h, gastos_h, saldo_d = 0, 0, 0
-
-            pct = min(max(saldo_d / ingresos_h, 0.0), 1.0) * 100 if ingresos_h > 0 else 0
-            bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
-
-            html = f"""
-            <div class="tarjeta-capigastos" style="{bg}">
-                <div style="position: absolute; top: 20px; left: 20px;">
-                    <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
-                    <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
-                </div>
-                <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
-                    <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
-                    <div class="texto-sombra" style="font-size: 24px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
-                </div>
-                <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
-                        <span>⬇ Ing: {ingresos_h:,.0f}</span>
-                        <span style="color: #ffcccb;">⬆ Gas: {gastos_h:,.0f}</span>
-                    </div>
-                    <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
-                    <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Disp.</div>
-                </div>
+        html = f"""
+        <div class="tarjeta-capigastos" style="{bg}">
+            <div style="position: absolute; top: 20px; left: 20px;">
+                <div class="texto-sombra" style="font-weight: bold; font-size: 14px; opacity: 0.9;">CAPIGASTOS CARD</div>
+                <div class="texto-sombra" style="font-size: 18px; font-weight: bold; margin-top: 5px; text-transform: uppercase;">{cuenta}</div>
             </div>
-            """
-            
-            if i < len(cols_display):
-                with cols_display[i]:
-                    st.markdown(html, unsafe_allow_html=True)
+            <div style="position: absolute; top: 75px; right: 20px; text-align: right;">
+                <div class="texto-sombra" style="font-size: 10px; opacity: 0.9;">SALDO DISPONIBLE</div>
+                <div class="texto-sombra" style="font-size: 24px; font-weight: bold;">S/ {saldo_d:,.2f}</div>
+            </div>
+            <div style="position: absolute; bottom: 20px; left: 20px; right: 20px;">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px;" class="texto-sombra">
+                    <span>⬇ Ing: {ingresos_h:,.0f}</span>
+                    <span style="color: #ffcccb;">⬆ Gas: {gastos_h:,.0f}</span>
+                </div>
+                <div class="barra-fondo"><div class="barra-progreso" style="width: {pct}%;"></div></div>
+                <div style="text-align: right; font-size: 9px; margin-top: 2px;" class="texto-sombra">{pct:.0f}% Disp.</div>
+            </div>
+        </div>
+        """
+        
+        # Insertar en columna (alternando izquierda/derecha)
+        with cols_display[i % 2]:
+            st.markdown(html, unsafe_allow_html=True)
 
 st.divider()
 
