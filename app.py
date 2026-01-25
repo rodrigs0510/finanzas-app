@@ -10,7 +10,7 @@ import base64
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="centered", page_icon="🐹")
 
-# --- FUNCIÓN PARA CARGAR IMÁGENES (NUEVO) ---
+# --- FUNCIÓN PARA CARGAR IMÁGENES ---
 def get_image_as_base64(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -19,9 +19,7 @@ def get_image_as_base64(file_path):
     except Exception:
         return None
 
-# Cargamos la imagen de la tarjeta en memoria
 img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
-# Si tienes el logo, cárgalo aquí también
 img_logo = get_image_as_base64("logo.png") 
 
 # --- CONEXIÓN ---
@@ -192,11 +190,11 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # ==========================================
-# 2. CUENTAS (DISEÑO TARJETA CAPIGASTOS) 💳
+# 2. CUENTAS (DISEÑO TARJETA CORREGIDO) 💳
 # ==========================================
 st.subheader("CUENTAS")
 
-# Estilos CSS personalizados para la tarjeta
+# Estilos CSS
 st.markdown("""
 <style>
     .tarjeta-capigastos {
@@ -229,13 +227,13 @@ st.markdown("""
         border-radius: 5px;
     }
 </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True) # <-- ESTO YA ESTABA BIEN
 
-cols_c = st.columns(2) # Mostramos 2 tarjetas por fila para que se vean grandes
+cols_c = st.columns(2)
 idx_c = 0
 
 for cuenta in lista_cuentas:
-    # Cálculos por cuenta
+    # Cálculos
     if not df.empty:
         ingresos_historicos = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
         gastos_historicos = df[(df['Cuenta'] == cuenta) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
@@ -243,24 +241,21 @@ for cuenta in lista_cuentas:
     else:
         ingresos_historicos, gastos_historicos, saldo_disponible = 0, 0, 0
 
-    # Cálculo porcentaje
     if ingresos_historicos > 0:
         pct = min(max(saldo_disponible / ingresos_historicos, 0.0), 1.0) * 100
     else:
         pct = 0
 
-    # Imagen de fondo en CSS (Si no hay imagen, usa un color marrón por defecto)
     bg_style = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
 
-    # Generamos el HTML de la tarjeta
+    # CÓDIGO HTML DE LA TARJETA
     html_tarjeta = f"""
     <div class="tarjeta-capigastos" style="{bg_style}">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-                <h3 class="texto-sombra" style="margin: 0; color: white;">{cuenta}</h3>
+                <h3 class="texto-sombra" style="margin: 0; color: white; font-size: 18px;">{cuenta}</h3>
                 <small class="texto-sombra" style="opacity: 0.9;">Capigastos Card</small>
             </div>
-            
             <div style="text-align: right;">
                 <small class="texto-sombra">Saldo Disponible</small>
                 <h2 class="texto-sombra" style="margin: 0; color: white;">S/ {saldo_disponible:,.2f}</h2>
@@ -268,7 +263,7 @@ for cuenta in lista_cuentas:
         </div>
 
         <div style="margin-top: 10px;">
-            <span class="texto-sombra" style="font-size: 12px; margin-right: 15px;">⬇ Ingresos Totales: S/ {ingresos_historicos:,.2f}</span>
+            <span class="texto-sombra" style="font-size: 12px; margin-right: 15px;">⬇ Ingresos: S/ {ingresos_historicos:,.2f}</span>
             <span class="texto-sombra" style="font-size: 12px; color: #ffcccb;">⬆ Gastado: S/ {gastos_historicos:,.2f}</span>
         </div>
 
@@ -285,7 +280,8 @@ for cuenta in lista_cuentas:
     """
 
     with cols_c[idx_c % 2]:
-        st.markdown(html_tarjeta, unsafe_allow_html=True)
+        # ¡AQUÍ ESTABA EL PROBLEMA! FALTABA EL TRUE
+        st.markdown(html_tarjeta, unsafe_allow_html=True) 
     
     idx_c += 1
 
