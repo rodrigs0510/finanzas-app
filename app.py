@@ -105,7 +105,8 @@ def dialog_eliminar_cuenta(lista_actual):
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
-    if col_d1.button("Sí, Eliminar"):
+    # Usamos help="ELIMINAR_ACCION" para que el CSS lo detecte y lo ponga rojo
+    if col_d1.button("Sí, Eliminar", help="ELIMINAR_ACCION"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
             ws_cuentas.delete_rows(cell.row)
@@ -201,115 +202,131 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # =========================================================
-# 2. CUENTAS (CARRUSEL HORIZONTAL + BOTONES COLOREADOS) 💳
+# 2. CUENTAS (CARRUSEL + BOTONES REALES) 💳
 # =========================================================
-c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1])
+# Alineación vertical centrada
+c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1], vertical_alignment="center")
+
 with c_titulo_cta:
     st.subheader("CUENTAS")
 with c_btn_add:
-    if st.button("Agregar", key="btn_add_main", use_container_width=True):
+    # help="AGREGAR" es la clave para que el CSS lo pinte de VERDE
+    if st.button("Agregar", key="btn_add_main", help="AGREGAR", use_container_width=True):
         dialog_agregar_cuenta()
 with c_btn_del:
-    if st.button("Eliminar", key="btn_del_main", use_container_width=True):
+    # help="ELIMINAR" es la clave para que el CSS lo pinte de ROJO
+    if st.button("Eliminar", key="btn_del_main", help="ELIMINAR", use_container_width=True):
         dialog_eliminar_cuenta(lista_cuentas)
 
-# --- CSS MEJORADO: COLORES EXACTOS ---
+# --- CSS DEFINITIVO (COLORES, ALINEACIÓN, ANIMACIÓN) ---
 st.markdown("""
 <style>
-    /* Estilos Generales para botones Marrones (por defecto) */
-    div.stButton > button {
-        background-color: #8B4513; 
-        color: white;
-        border: 2px solid #5e2f0d;
-        border-radius: 20px;
-        padding: 5px 20px;
-        font-weight: bold;
-        box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+    /* 1. ANIMACIÓN DE ENTRADA (FADE IN + SLIDE UP) */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translate3d(0, 20px, 0);
+        }
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+        }
     }
 
-    /* === BOTÓN AGREGAR (VERDE) === */
-    /* Apuntamos al botón específico usando atributos ARIA o Texto */
-    div.stButton > button:has(div p:contains('Agregar')), 
-    div.stButton > button:has(p:contains('Agregar')) {
-        background-color: #9ACD32 !important; /* Verde hoja */
-        border: 2px solid #556B2F !important;
-        color: #2F4F4F !important; /* Letra oscura */
-    }
-    div.stButton > button:has(div p:contains('Agregar')):hover {
-        background-color: #ADFF2F !important;
-        transform: translateY(-2px);
-    }
-
-    /* === BOTÓN ELIMINAR (ROJO) === */
-    div.stButton > button:has(div p:contains('Eliminar')), 
-    div.stButton > button:has(p:contains('Eliminar')) {
-        background-color: #FA8072 !important; /* Salmón / Rojo suave */
-        border: 2px solid #B22222 !important;
-        color: #800000 !important; /* Letra oscura */
-    }
-    div.stButton > button:has(div p:contains('Eliminar')):hover {
-        background-color: #FF6347 !important;
-        transform: translateY(-2px);
-    }
-
-    /* Estilos Tarjeta */
+    /* 2. ESTILOS DE LA TARJETA (CON ANIMACIÓN APLICADA) */
     .tarjeta-capigastos {
+        animation: fadeInUp 0.6s ease-out; /* AQUI ESTA LA ANIMACION */
         border-radius: 15px;
         padding: 20px;
         color: white;
-        margin-bottom: 10px; /* Reducido margen */
-        box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3);
+        margin-bottom: 10px;
+        box-shadow: 0 4px 15px 0 rgba(0,0,0,0.4);
         position: relative;
         height: 220px;
         background-size: 100% 100%; 
         background-position: center;
+        transition: transform 0.3s ease;
     }
+    
+    /* Efecto al pasar el mouse por la tarjeta */
+    .tarjeta-capigastos:hover {
+        transform: scale(1.02);
+    }
+
+    /* Textos y Barras */
     .texto-sombra { text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
     .barra-fondo { background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 8px; width: 100%; margin-top: 5px; }
     .barra-progreso { background-color: #4CAF50; height: 100%; border-radius: 5px; }
+
+    /* 3. ESTILOS DE BOTONES "INFALIBLES" USANDO ATRIBUTO TITLE (HELP) */
+    div.stButton > button {
+        background-color: #8B4513; /* Marrón por defecto */
+        color: white;
+        border: 2px solid #5e2f0d;
+        border-radius: 30px; /* Bien redondos */
+        padding: 5px 15px;   /* Delgados */
+        font-weight: bold;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        transition: all 0.2s;
+    }
+    
+    /* BOTÓN VERDE (AGREGAR) - Detecta el tooltip "AGREGAR" */
+    div.stButton > button[title="AGREGAR"] {
+        background-color: #9ACD32 !important; /* Verde Hoja */
+        border-color: #556B2F !important;
+        color: #2F4F4F !important;
+    }
+    div.stButton > button[title="AGREGAR"]:hover {
+        background-color: #ADFF2F !important;
+        transform: scale(1.05);
+    }
+
+    /* BOTÓN ROJO (ELIMINAR) - Detecta el tooltip "ELIMINAR" */
+    div.stButton > button[title="ELIMINAR"], 
+    div.stButton > button[title="ELIMINAR_ACCION"] {
+        background-color: #FA8072 !important; /* Rojo Salmón */
+        border-color: #B22222 !important;
+        color: #800000 !important;
+    }
+    div.stButton > button[title="ELIMINAR"]:hover,
+    div.stButton > button[title="ELIMINAR_ACCION"]:hover {
+        background-color: #FF6347 !important;
+        transform: scale(1.05);
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
 # --- LÓGICA DE CARRUSEL (PAGINACIÓN) ---
-TARJETAS_POR_PAGINA = 2  # Mostramos 2 tarjetas para que se vean bien
+TARJETAS_POR_PAGINA = 2 
 
-# Inicializar estado de página
 if 'pagina_cuentas' not in st.session_state:
     st.session_state.pagina_cuentas = 0
 
 total_cuentas = len(lista_cuentas)
 total_paginas = math.ceil(total_cuentas / TARJETAS_POR_PAGINA)
 
-# Contenedor del Carrusel
-col_nav_izq, col_tarjetas, col_nav_der = st.columns([0.5, 8, 0.5])
+# Navegación del Carrusel
+col_nav_izq, col_tarjetas, col_nav_der = st.columns([0.5, 8, 0.5], vertical_alignment="center")
 
-# Botón Anterior
 with col_nav_izq:
-    st.write("") # Espacio para centrar verticalmente (aprox)
-    st.write("")
-    st.write("")
     if st.button("◀", key="prev_page"):
         if st.session_state.pagina_cuentas > 0:
             st.session_state.pagina_cuentas -= 1
             st.rerun()
 
-# Botón Siguiente
 with col_nav_der:
-    st.write("")
-    st.write("")
-    st.write("")
     if st.button("▶", key="next_page"):
         if st.session_state.pagina_cuentas < total_paginas - 1:
             st.session_state.pagina_cuentas += 1
             st.rerun()
 
-# Mostrar Tarjetas de la Página Actual
+# Mostrar Tarjetas
 with col_tarjetas:
     start_idx = st.session_state.pagina_cuentas * TARJETAS_POR_PAGINA
     end_idx = start_idx + TARJETAS_POR_PAGINA
     cuentas_pagina = lista_cuentas[start_idx:end_idx]
     
-    # Creamos columnas dinámicas para las tarjetas visibles
     cols_display = st.columns(TARJETAS_POR_PAGINA)
     
     for i, cuenta in enumerate(cuentas_pagina):
@@ -345,8 +362,10 @@ with col_tarjetas:
         </div>
         """
         
-        with cols_display[i]:
-            st.markdown(html, unsafe_allow_html=True)
+        # Manejo de columnas dinámico si quedan espacios vacíos
+        if i < len(cols_display):
+            with cols_display[i]:
+                st.markdown(html, unsafe_allow_html=True)
 
 st.divider()
 
