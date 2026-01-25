@@ -18,7 +18,7 @@ def load_image_base64(path):
     except:
         return ""
 
-bg_fondo = load_image_base64("images/fondo.jpg")
+bg_fondo = load_image_base64("assets/images/fondo.jpg")
 
 st.markdown(f"""
 <style>
@@ -59,6 +59,7 @@ st.markdown(f"""
 render_header()
 render_registro()
 render_dashboard()
+
 
 
 
