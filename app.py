@@ -88,7 +88,6 @@ def limpiar_cache():
 @st.dialog("Agregar Nueva Cuenta")
 def dialog_agregar_cuenta():
     nombre_cuenta = st.text_input("Nombre de la cuenta (Ej: BCP Ahorros)")
-    # Este botón se pintará de verde por el CSS
     if st.button("Crear Cuenta"):
         if nombre_cuenta:
             ws_cuentas.append_row([nombre_cuenta])
@@ -105,7 +104,6 @@ def dialog_eliminar_cuenta(lista_actual):
     st.warning(f"¿Estás seguro de que quieres eliminar **{cuenta_a_borrar}**? Esta acción no se puede deshacer.")
     
     col_d1, col_d2 = st.columns(2)
-    # Este botón se pintará de rojo por el CSS
     if col_d1.button("Sí, Eliminar"):
         try:
             cell = ws_cuentas.find(cuenta_a_borrar)
@@ -202,66 +200,57 @@ m3.metric("Ahorro (Mes)", f"S/ {bal_m:.2f}", delta=f"{(bal_m/ing_m)*100:.0f}%" i
 st.divider()
 
 # ==========================================
-# 2. CUENTAS (CON BOTONES DE GESTIÓN ESTILIZADOS) 💳
+# 2. CUENTAS (CON BOTONES PERSONALIZADOS) 💳
 # ==========================================
 c_titulo_cta, c_btn_add, c_btn_del = st.columns([3, 1, 1])
 with c_titulo_cta:
     st.subheader("CUENTAS")
 with c_btn_add:
-    # SIN EMOJIS, CSS SE ENCARGA DEL COLOR
-    if st.button("Agregar Cuenta", use_container_width=True):
+    # SIN EMOJIS, TEXTO SIMPLE
+    if st.button("Agregar", key="btn_agregar", use_container_width=True):
         dialog_agregar_cuenta()
 with c_btn_del:
-    # SIN EMOJIS, CSS SE ENCARGA DEL COLOR
-    if st.button("Eliminar Cuenta", use_container_width=True):
+    # SIN EMOJIS, TEXTO SIMPLE
+    if st.button("Eliminar", key="btn_eliminar", use_container_width=True):
         dialog_eliminar_cuenta(lista_cuentas)
 
-# --- CSS PERSONALIZADO (COLORES Y TARJETAS) ---
+# --- CSS PERSONALIZADO (COLORES EXACTOS Y FORMA) ---
 st.markdown("""
 <style>
-    /* --- ESTILOS BASE PARA TODOS LOS BOTONES (MARRÓN CAPIGASTOS) --- */
+    /* ESTILOS BASE PARA BOTONES NORMALES (Guardar, etc) */
     div.stButton > button {
-        background-color: #8B4513; /* Marrón base */
+        background-color: #8B4513; 
         color: white;
         border: 2px solid #5e2f0d;
-        border-radius: 25px; /* Muy redondos */
-        padding: 10px 24px;
+        border-radius: 20px; /* Redondeado, pero no círculo */
+        padding: 5px 20px;   /* MÁS DELGADOS (Menos relleno vertical) */
         font-weight: bold;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        transition: all 0.3s ease;
-    }
-    div.stButton > button:hover {
-        background-color: #A0522D;
-        transform: translateY(-3px);
-        box-shadow: 0 7px 10px rgba(0,0,0,0.4);
-        color: #FFD700; /* Texto dorado al pasar mouse */
-    }
-    div.stButton > button:active { transform: translateY(1px); box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-
-    /* --- REGLAS ESPECIALES PARA BOTONES VERDES (AGREGAR/CREAR) --- */
-    div.stButton > button:has(div p:contains('Agregar')),
-    div.stButton > button:has(div p:contains('Crear')) {
-        background-color: #28a745 !important; /* Verde */
-        border-color: #1e7e34 !important;
-    }
-    div.stButton > button:has(div p:contains('Agregar')):hover,
-    div.stButton > button:has(div p:contains('Crear')):hover {
-        background-color: #218838 !important;
-        color: white !important;
+        box-shadow: 0 3px 5px rgba(0,0,0,0.3);
     }
 
-    /* --- REGLAS ESPECIALES PARA BOTONES ROJOS (ELIMINAR/BORRAR) --- */
+    /* --- BOTÓN AGREGAR (VERDE) --- */
+    div.stButton > button:has(div p:contains('Agregar')) {
+        background-color: #A2D149 !important; /* Verde hoja suave (tipo tu imagen) */
+        border: 2px solid #556B2F !important; /* Borde verde oscuro */
+        color: #3E2723 !important; /* Texto café oscuro */
+        border-radius: 50px !important; /* Forma pastilla */
+    }
+    div.stButton > button:has(div p:contains('Agregar')):hover {
+        background-color: #b0e050 !important;
+        transform: translateY(-2px);
+    }
+
+    /* --- BOTÓN ELIMINAR (ROJO) --- */
     div.stButton > button:has(div p:contains('Eliminar')),
-    div.stButton > button:has(div p:contains('Sí, Eliminar')),
-    div.stButton > button:has(div p:contains('BORRAR')) {
-         background-color: #dc3545 !important; /* Rojo */
-         border-color: #bd2130 !important;
+    div.stButton > button:has(div p:contains('Sí, Eliminar')) {
+         background-color: #EA6B66 !important; /* Rojo salmón suave (tipo tu imagen) */
+         border: 2px solid #8B0000 !important; /* Borde rojo oscuro */
+         color: #3E2723 !important; /* Texto café oscuro */
+         border-radius: 50px !important; /* Forma pastilla */
     }
-    div.stButton > button:has(div p:contains('Eliminar')):hover,
-    div.stButton > button:has(div p:contains('Sí, Eliminar')):hover,
-    div.stButton > button:has(div p:contains('BORRAR')):hover {
-         background-color: #c82333 !important;
-         color: white !important;
+    div.stButton > button:has(div p:contains('Eliminar')):hover {
+         background-color: #f77c77 !important;
+         transform: translateY(-2px);
     }
 
     /* ESTILOS TARJETA */
@@ -401,7 +390,6 @@ with st.form("op_form", clear_on_submit=True):
 with st.expander("Borrar Último"):
     if not df.empty:
         st.dataframe(df.sort_values("Fecha", ascending=False).head(3), use_container_width=True)
-        # Este botón se pintará de rojo por el CSS
         if st.button("BORRAR"):
             try:
                 rows = len(ws_registro.get_all_values())
