@@ -5,6 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
 import pytz 
+import re
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="wide", page_icon="💰")
@@ -18,12 +19,11 @@ def conectar_google_sheets():
             creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
         else:
             creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-        
         client = gspread.authorize(creds)
         sheet = client.open("Finanzas_RodrigoKrys")
         return sheet
     except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
+        st.error(f"❌ Error conectando: {e}")
         st.stop()
 
 try:
@@ -33,39 +33,44 @@ try:
     ws_presupuestos = sh.worksheet("Presupuestos")
     ws_pendientes = sh.worksheet("Pendientes")
 except Exception as e:
-    st.error(f"⚠️ Error cargando hojas: {e}")
+    st.error(f"⚠️ Revisa las pestañas de tu Excel: {e}")
     st.stop()
 
-# --- 3. FUNCIONES LÓGICAS ---
+# --- 3. FUNCIONES INTELIGENTES ---
 def limpiar_cache():
     st.cache_data.clear()
 
 def intento_seguro(funcion):
     try:
         return funcion()
-    except Exception:
+    except:
         time.sleep(2)
         return funcion()
 
+# FUNCION MAESTRA DE LIMPIEZA DE DINERO
+def limpiar_monto_maestro(serie):
+    # 1. Convertir a texto para manipular
+    s = serie.astype(str)
+    # 2. PASO CRÍTICO: Si hay coma, la volvemos punto (15,7 -> 15.7)
+    s = s.str.replace(',', '.', regex=False)
+    # 3. Limpiar cualquier símbolo raro (S/, $, espacios), dejando solo números y puntos
+    s = s.str.replace(r'[^\d.-]', '', regex=True)
+    # 4. Convertir a número (Float)
+    return pd.to_numeric(s, errors='coerce').fillna(0.0)
+
+# CAMBIAMOS EL NOMBRE PARA FORZAR RECARGA DE CACHÉ (V27)
 @st.cache_data(ttl=60)
-def obtener_datos():
+def obtener_datos_v27():
     cols = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     try:
         data = intento_seguro(lambda: ws_registro.get_all_records())
         if not data: return pd.DataFrame(columns=cols + ['Fila_Original'])
         
         df = pd.DataFrame(data)
-        
         df['Fila_Original'] = df.index + 2 
         
-        # LECTURA ROBUSTA: Limpiamos lo que venga de Google
-        # 1. Convertimos a string para manipular
-        # 2. Reemplazamos coma por punto por si acaso Google lo guardó con coma
-        df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
-        # 3. Quitamos cualquier símbolo de moneda 'S/' o '$' si se coló
-        df['Monto'] = df['Monto'].astype(str).str.replace(r'[^\d.-]', '', regex=True)
-        # 4. Convertimos a número
-        df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
+        # APLICAMOS LA CURA
+        df['Monto'] = limpiar_monto_maestro(df['Monto'])
         
         df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
         return df.dropna(subset=['Fecha'])
@@ -87,7 +92,7 @@ def obtener_presupuestos():
     except: return {}
 
 @st.cache_data(ttl=60)
-def obtener_pendientes():
+def obtener_pendientes_v27():
     cols = ['Descripcion', 'Monto', 'FechaLimite']
     try:
         data = intento_seguro(lambda: ws_pendientes.get_all_records())
@@ -95,10 +100,9 @@ def obtener_pendientes():
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2
         
-        # Limpieza robusta igual que arriba
-        df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
-        df['Monto'] = df['Monto'].astype(str).str.replace(r'[^\d.-]', '', regex=True)
-        df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
+        # APLICAMOS LA CURA
+        df['Monto'] = limpiar_monto_maestro(df['Monto'])
+        
         return df
     except:
         return pd.DataFrame(columns=cols + ['Fila_Original'])
@@ -108,13 +112,13 @@ def borrar_registro(fila):
     try:
         ws_registro.delete_rows(fila)
         limpiar_cache(); st.toast("🗑️ Eliminado"); time.sleep(1); st.rerun()
-    except: st.error("Error al borrar")
+    except: st.error("Error API - Reintenta")
 
 def pagar_pendiente(fila):
     try:
         ws_pendientes.delete_rows(fila)
         limpiar_cache(); st.toast("✅ Pagado"); time.sleep(1); st.rerun()
-    except: st.error("Error al pagar")
+    except: st.error("Error API - Reintenta")
 
 # --- POPUPS ---
 @st.dialog("➕ Nueva Cuenta")
@@ -132,34 +136,35 @@ def dialog_borrar_cuenta(lista):
         ws_cuentas.delete_rows(cell.row)
         limpiar_cache(); st.rerun()
 
-@st.dialog("⏰ Nuevo Gasto Pendiente")
+@st.dialog("⏰ Nuevo Pendiente")
 def dialog_agregar_pendiente():
-    desc = st.text_input("Descripción (Ej: Luz)")
+    desc = st.text_input("Descripción")
     monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
     fecha = st.date_input("Vencimiento")
-    
     if st.button("Agendar"):
-        # GUARDAMOS EL NÚMERO PURO (FLOAT)
+        # GUARDAR COMO FLOAT PURO (SIN COMILLAS)
         ws_pendientes.append_row([desc, monto, str(fecha)])
         limpiar_cache(); st.rerun()
 
 # --- 5. INTERFAZ OPERATIVA ---
 zona_peru = pytz.timezone('America/Lima')
-df = obtener_datos()
-df_pendientes = obtener_pendientes()
+# LLAMAMOS A LAS FUNCIONES V27
+df = obtener_datos_v27()
+df_pendientes = obtener_pendientes_v27()
 lista_cuentas = obtener_cuentas()
 presupuestos = obtener_presupuestos()
 
-# Header
 st.title("💰 CAPIGASTOS: Panel Operativo")
-top1, top2, top3, top4 = st.columns(4)
 
+# TOTALES
+top1, top2, top3, top4 = st.columns(4)
 saldo_global = (df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum())
 ahorro_hist = saldo_global
 
 top1.metric("Saldo Disponible", f"S/ {saldo_global:,.2f}")
-top2.metric("Ahorro Histórico", f"S/ {ahorro_hist:,.2f}")
+top2.metric("Ahorro Histórico", f"S/ {saldo_global:,.2f}")
 
+# FILTROS
 meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 hoy = datetime.now(zona_peru)
 sel_mes = top3.selectbox("Mes", meses, index=hoy.month-1)
@@ -172,7 +177,7 @@ else: df_mes = df
 
 st.divider()
 
-# --- SECCIÓN 1: CONSOLIDADO ---
+# CONSOLIDADO
 with st.container(border=True):
     st.subheader(f"📊 Resumen {sel_mes} {sel_anio}")
     mi = df_mes[df_mes['Tipo']=='Ingreso']['Monto'].sum()
@@ -184,13 +189,13 @@ with st.container(border=True):
 
 st.write("") 
 
-# --- SECCIÓN 2: OPERATIVA ---
+# ZONA DE TRABAJO
 col_izq, col_der = st.columns([1, 1.5], gap="medium")
 
-# FORMULARIO (Izquierda)
+# FORMULARIO
 with col_izq:
     with st.container(border=True):
-        st.subheader("📝 Registrar Operación")
+        st.subheader("📝 Registrar")
         tipo = st.radio("Acción", ["Gasto", "Ingreso", "Transferencia"], horizontal=True)
         usuario = st.selectbox("Usuario", ["Rodrigo", "Krys"])
         
@@ -201,7 +206,7 @@ with col_izq:
         else:
             cta = st.selectbox("Cuenta", lista_cuentas)
             if tipo == "Gasto":
-                cat = st.selectbox("Categoría", list(presupuestos.keys()) + ["Otros", "Comida", "Taxi"])
+                cat = st.selectbox("Categoría", list(presupuestos.keys()) + ["Otros", "Comida"])
             else: cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo"])
         
         monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
@@ -213,22 +218,21 @@ with col_izq:
             
             try:
                 if tipo == "Transferencia":
-                    if c_ori == c_des: st.error("Cuentas iguales")
+                    if c_ori == c_des: st.error("Misma cuenta")
                     else:
-                        # ENVIAMOS 'monto' SIN COMILLAS (COMO NÚMERO)
+                        # GUARDAR FLOAT PURO
                         r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"]
                         r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"]
                         ws_registro.append_row(r1); ws_registro.append_row(r2)
                 else:
-                    # ENVIAMOS 'monto' SIN COMILLAS (COMO NÚMERO)
+                    # GUARDAR FLOAT PURO
                     ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc])
                 
-                limpiar_cache(); st.success("Listo!"); time.sleep(1); st.rerun()
+                limpiar_cache(); st.success("Guardado"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
 
-# PANELES DERECHOS
+# PANELES
 with col_der:
-    # 1. CUENTAS
     with st.container(border=True):
         h1, h2, h3 = st.columns([3, 1, 1])
         h1.subheader("💳 Cuentas")
@@ -243,9 +247,8 @@ with col_der:
 
     st.write("")
     
-    # 2. METAS
     with st.container(border=True):
-        st.subheader("🎯 Metas del Mes")
+        st.subheader("🎯 Metas")
         if not df_mes.empty:
             g_cat = df_mes[df_mes['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
         else: g_cat = {}
@@ -263,16 +266,14 @@ with col_der:
 
 st.write("")
 
-# --- SECCIÓN 3: TABLAS ---
+# TABLAS
 col_hist, col_pend = st.columns([1.5, 1], gap="medium")
 
-# HISTORIAL (IZQUIERDA)
 with col_hist:
     with st.container(border=True):
         st.subheader("📜 Historial")
         if not df_mes.empty:
             df_show = df_mes.sort_values('Fecha', ascending=False)
-            
             c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 3, 1])
             c1.markdown("**Fecha**"); c2.markdown("**Cuenta**"); c3.markdown("**Monto**"); c4.markdown("**Detalle**"); c5.markdown("**X**")
             st.divider()
@@ -285,21 +286,18 @@ with col_hist:
                 cc3.markdown(f":{color}[{row['Monto']:.2f}]") 
                 cc4.caption(f"{row['Categoria']} - {row['Descripcion']}")
                 
-                fila_real = row['Fila_Original']
-                if cc5.button("🗑️", key=f"del_{fila_real}"):
-                    borrar_registro(fila_real)
+                fp = row['Fila_Original']
+                if cc5.button("🗑️", key=f"d_{fp}"):
+                    borrar_registro(fp)
         else:
             st.info("Sin datos.")
 
-# PENDIENTES (DERECHA)
 with col_pend:
     with st.container(border=True):
         ph1, ph2 = st.columns([3, 1])
         ph1.subheader("⏰ Pendientes")
         if ph2.button("➕ Nuevo"): dialog_agregar_pendiente()
-        
         st.divider()
-        
         if not df_pendientes.empty:
             for idx, row in df_pendientes.iterrows():
                 pc1, pc2 = st.columns([3, 1.5])
@@ -308,7 +306,7 @@ with col_pend:
                     st.caption(f"S/ {row['Monto']:.2f} | Vence: {row['FechaLimite']}")
                 with pc2:
                     fp = row['Fila_Original']
-                    if st.button("✅ PAGAR", key=f"pay_{fp}"):
+                    if st.button("✅ PAGAR", key=f"p_{fp}"):
                         pagar_pendiente(fp)
                 st.divider()
         else:
