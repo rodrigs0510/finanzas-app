@@ -5,15 +5,30 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
 import pytz 
+import base64
 
-# --- 1. CONFIGURACIÓN (NATIVA Y LIMPIA) ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(
-    page_title="CAPIGASTOS (Operativo)", 
+    page_title="CAPIGASTOS", 
     layout="wide",
-    page_icon="💰"
+    page_icon="🐹",
+    initial_sidebar_state="collapsed"
 )
 
-# --- 2. CONEXIÓN A GOOGLE SHEETS ---
+# --- CARGAR IMÁGENES ---
+def get_image_as_base64(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except Exception:
+        return ""
+
+img_tarjeta = get_image_as_base64("Tarjeta fondo.png")
+img_logo = get_image_as_base64("logo.png") 
+img_fondo = get_image_as_base64("fondo.jpg") 
+
+# --- CONEXIÓN ---
 @st.cache_resource
 def conectar_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -21,7 +36,6 @@ def conectar_google_sheets():
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     else:
-        # Asegúrate de tener tu archivo credentials.json en la misma carpeta
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
     sheet = client.open("Finanzas_RodrigoKrys")
@@ -33,247 +47,181 @@ try:
     ws_cuentas = sh.worksheet("Cuentas")
     ws_presupuestos = sh.worksheet("Presupuestos")
 except Exception as e:
-    st.error(f"❌ Error de Conexión: {e}")
+    st.error("Error conectando a Google. Espera 1 minuto y recarga.")
     st.stop()
 
-# --- 3. FUNCIONES DE DATOS (LÓGICA PURA) ---
-def limpiar_cache():
-    st.cache_data.clear()
-
+# --- FUNCIONES ---
 def intento_seguro(funcion_gspread):
-    # Reintenta la conexión si falla momentáneamente
-    try:
-        return funcion_gspread()
-    except Exception as e:
-        time.sleep(2)
-        return funcion_gspread()
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            return funcion_gspread()
+        except gspread.exceptions.APIError as e:
+            if i == max_retries - 1: raise e
+            time.sleep(2 * (i + 1))
+        except Exception as e: raise e
+
+def limpiar_cache(): 
+    st.cache_data.clear()
 
 @st.cache_data(ttl=60)
 def obtener_datos():
-    # Estructura esperada
-    cols = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
+    columnas_base = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     try:
         data = intento_seguro(lambda: ws_registro.get_all_records())
-        if not data: return pd.DataFrame(columns=cols)
+        if not data: 
+            return pd.DataFrame(columns=columnas_base + ['Fila_Original'])
         
         df = pd.DataFrame(data)
         
         # Validación de columnas
-        for c in cols:
-            if c not in df.columns: df[c] = ""
-            
-        # Limpieza Crítica de Montos
-        df['Monto'] = df['Monto'].astype(str).str.replace(r'[^\d.]', '', regex=True) # Solo deja números y puntos
-        df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+        for col in columnas_base:
+            if col not in df.columns: df[col] = ""
         
-        # Limpieza de Fechas
-        df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
-        return df.dropna(subset=['Fecha'])
-    except Exception as e:
-        st.error(f"Error leyendo datos: {e}")
-        return pd.DataFrame(columns=cols)
+        # CRÍTICO: Guardamos el número de fila original antes de filtrar nada
+        # (Index 0 del DF = Fila 2 del Excel porque la 1 es header)
+        df['Fila_Original'] = df.index + 2 
+        
+        df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0)
+        df['Fecha'] = pd.to_datetime(df['Fecha'], format="%Y-%m-%d", errors='coerce')
+        return df
+    except:
+        return pd.DataFrame(columns=columnas_base + ['Fila_Original'])
 
 @st.cache_data(ttl=600)
 def obtener_cuentas():
     try:
-        lista = intento_seguro(lambda: ws_cuentas.col_values(1))
-        return lista[1:] if len(lista) > 1 else ["Efectivo"] # Salta encabezado
+        cuentas = intento_seguro(lambda: ws_cuentas.col_values(1))
+        return cuentas[1:] if len(cuentas) > 1 else ["Efectivo"]
     except: return ["Efectivo"]
 
 @st.cache_data(ttl=600)
 def obtener_presupuestos():
     try:
-        data = intento_seguro(lambda: ws_presupuestos.get_all_records())
-        return {d['Categoria']: d['Tope_Mensual'] for d in data}
+        records = intento_seguro(lambda: ws_presupuestos.get_all_records())
+        return {row['Categoria']: row['Tope_Mensual'] for row in records}
     except: return {}
 
-# --- 4. GESTIÓN DE CUENTAS (DIALOGS NATIVOS) ---
-@st.dialog("Nueva Cuenta")
-def pop_agregar_cuenta():
-    nombre = st.text_input("Nombre del Banco/Cuenta")
-    if st.button("Guardar Cuenta"):
-        if nombre:
-            ws_cuentas.append_row([nombre])
-            limpiar_cache()
-            st.success("Guardado")
-            time.sleep(1)
-            st.rerun()
-
-@st.dialog("Borrar Cuenta")
-def pop_eliminar_cuenta(lista):
-    sel = st.selectbox("Selecciona cuenta a borrar", lista)
-    if st.button("Confirmar Borrado", type="primary"):
-        cell = ws_cuentas.find(sel)
-        ws_cuentas.delete_rows(cell.row)
+# --- ACCIÓN DE BORRADO ---
+def borrar_fila_especifica(numero_fila):
+    try:
+        ws_registro.delete_rows(numero_fila)
         limpiar_cache()
-        st.success("Eliminado")
+        st.toast(f"✅ Registro eliminado correctamente")
         time.sleep(1)
-        st.rerun()
+    except Exception as e:
+        st.error(f"Error al borrar: {e}")
 
-# --- 5. INTERFAZ OPERATIVA (LAYOUT) ---
-zona_peru = pytz.timezone('America/Lima')
-df = obtener_datos()
-lista_cuentas = obtener_cuentas()
-presupuestos = obtener_presupuestos()
+# --- DIALOGS ---
+@st.dialog("Agregar Nueva Cuenta")
+def dialog_agregar_cuenta():
+    nombre_cuenta = st.text_input("Nombre de la cuenta")
+    if st.button("Crear Cuenta"):
+        if nombre_cuenta:
+            ws_cuentas.append_row([nombre_cuenta])
+            limpiar_cache(); st.success("¡Creada!"); time.sleep(1); st.rerun()
 
-# --- CÁLCULOS GLOBALES ---
-saldo_global = 0
-ingreso_total_hist = df[df['Tipo'] == 'Ingreso']['Monto'].sum()
-gasto_total_hist = df[df['Tipo'] == 'Gasto']['Monto'].sum()
-ahorro_hist = ingreso_total_hist - gasto_total_hist
+@st.dialog("Eliminar Cuenta")
+def dialog_eliminar_cuenta(lista_actual):
+    cuenta_a_borrar = st.selectbox("Selecciona cuenta:", lista_actual)
+    st.warning(f"¿Eliminar **{cuenta_a_borrar}**?")
+    c1, c2 = st.columns(2)
+    if c1.button("Sí, Eliminar"):
+        cell = ws_cuentas.find(cuenta_a_borrar)
+        ws_cuentas.delete_rows(cell.row)
+        limpiar_cache(); st.success("Eliminada"); time.sleep(1); st.rerun()
+    if c2.button("Cancelar"): st.rerun()
 
-# Calculamos saldo por cuenta
-saldos_por_cuenta = {}
-for c in lista_cuentas:
-    ing = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Ingreso')]['Monto'].sum()
-    gas = df[(df['Cuenta'] == c) & (df['Tipo'] == 'Gasto')]['Monto'].sum()
-    saldo = ing - gas
-    saldos_por_cuenta[c] = saldo
-    saldo_global += saldo
+# --- CSS NUCLEAR ---
+st.markdown(f"""
+<style>
+    /* 1. FONDO DE PANTALLA */
+    .stApp {{
+        background-image: url("data:image/jpg;base64,{img_fondo}");
+        background-size: cover; 
+        background-position: center; 
+        background-attachment: fixed;
+    }}
 
-# --- ENCABEZADO ---
-st.title("💰 CAPIGASTOS: Panel de Control")
-top1, top2, top3, top4 = st.columns(4)
-top1.metric("Saldo Disponible Total", f"S/ {saldo_global:,.2f}")
-top2.metric("Ahorro Histórico", f"S/ {ahorro_hist:,.2f}")
+    /* 2. CAJAS BLANCAS SÓLIDAS */
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        background-color: #FFF8DC !important;
+        border: 3px solid #8B4513 !important;
+        border-radius: 15px !important;
+        padding: 15px !important;
+        opacity: 1 !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+    }}
+    div[data-testid="stVerticalBlockBorderWrapper"] > div {{
+        background-color: transparent !important;
+    }}
 
-# Filtros de Fecha
-meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-hoy = datetime.now(zona_peru)
-mes_sel = top3.selectbox("Mes", meses, index=hoy.month-1)
-anio_sel = top4.number_input("Año", value=hoy.year)
-mes_idx = meses.index(mes_sel) + 1
-
-st.divider()
-
-# --- CONSOLIDADO DEL MES ---
-if not df.empty:
-    df_mes = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == anio_sel)]
-else:
-    df_mes = df
-
-m_ing = df_mes[df_mes['Tipo'] == 'Ingreso']['Monto'].sum()
-m_gas = df_mes[df_mes['Tipo'] == 'Gasto']['Monto'].sum()
-m_bal = m_ing - m_gas
-
-c1, c2, c3 = st.columns(3)
-c1.metric("Ingresos (Mes)", f"S/ {m_ing:,.2f}", border=True)
-c2.metric("Gastos (Mes)", f"S/ {m_gas:,.2f}", delta_color="inverse", border=True)
-c3.metric("Ahorro (Mes)", f"S/ {m_bal:,.2f}", border=True)
-
-st.divider()
-
-# --- ÁREA DE TRABAJO (2 COLUMNAS) ---
-col_izq, col_der = st.columns([1, 2], gap="large")
-
-# === IZQUIERDA: FORMULARIO ===
-with col_izq:
-    st.subheader("📝 Registrar Operación")
-    with st.container(border=True):
-        tipo = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True)
-        
-        with st.form("form_operacion", clear_on_submit=True):
-            usuario = st.selectbox("Usuario", ["Rodrigo", "Krys"])
-            
-            # Lógica dinámica de campos
-            if tipo == "Transferencia":
-                c_origen = st.selectbox("Desde", lista_cuentas)
-                c_destino = st.selectbox("Hacia", lista_cuentas)
-                categoria = "Transferencia"
-                cuenta_final = c_origen # Referencia para el registro de salida
-            else:
-                cuenta_final = st.selectbox("Cuenta", lista_cuentas)
-                if tipo == "Gasto":
-                    categoria = st.selectbox("Categoría", list(presupuestos.keys()) + ["Otros", "Comida", "Taxi"])
-                else:
-                    categoria = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo", "Otros"])
-            
-            monto = st.number_input("Monto (S/)", min_value=0.01, format="%.2f")
-            desc = st.text_input("Descripción")
-            
-            # BOTÓN DE GUARDADO
-            submitted = st.form_submit_button("💾 GUARDAR MOVIMIENTO", type="primary", use_container_width=True)
-            
-            if submitted:
-                try:
-                    fecha_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
-                    hora_str = datetime.now(zona_peru).strftime("%H:%M:%S")
-                    
-                    if tipo == "Transferencia":
-                        if c_origen == c_destino:
-                            st.error("¡Origen y destino son iguales!")
-                        else:
-                            # Salida
-                            ws_registro.append_row([fecha_str, hora_str, usuario, c_origen, "Gasto", "Transferencia", monto, f"-> {c_destino}: {desc}"])
-                            # Entrada
-                            ws_registro.append_row([fecha_str, hora_str, usuario, c_destino, "Ingreso", "Transferencia", monto, f"<- {c_origen}: {desc}"])
-                            limpiar_cache()
-                            st.success("✅ Transferencia realizada")
-                            time.sleep(1)
-                            st.rerun()
-                    else:
-                        ws_registro.append_row([fecha_str, hora_str, usuario, cuenta_final, tipo, categoria, monto, desc])
-                        limpiar_cache()
-                        st.success("✅ Operación registrada")
-                        time.sleep(1)
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Error al guardar: {e}")
-
-# === DERECHA: PANELES DE INFORMACIÓN ===
-with col_der:
-    # 1. CUENTAS
-    c_head, c_btn1, c_btn2 = st.columns([2, 1, 1])
-    c_head.subheader("💳 Estado de Cuentas")
-    if c_btn1.button("➕ Nueva Cuenta"): pop_agregar_cuenta()
-    if c_btn2.button("🗑️ Borrar Cuenta"): pop_eliminar_cuenta(lista_cuentas)
+    /* 3. TEXTOS NEGROS/MARRONES */
+    h1, h2, h3, h4, p, span, label, div, .stMarkdown, .stMetricLabel {{
+        color: #4A3B2A !important;
+        text-shadow: none !important;
+    }}
     
-    # Grid de cuentas (usando metrics nativos)
-    cols = st.columns(3)
-    for i, (cta, saldo) in enumerate(saldos_por_cuenta.items()):
-        with cols[i % 3]:
-            st.metric(label=cta, value=f"S/ {saldo:,.2f}", border=True)
-    
-    st.write("") # Espacio
-    
-    # 2. METAS
-    st.subheader("🎯 Metas del Mes")
-    if not df_mes.empty:
-        gastos_por_cat = df_mes[df_mes['Tipo'] == 'Gasto'].groupby('Categoria')['Monto'].sum()
-    else:
-        gastos_por_cat = {}
-        
-    for cat, tope in presupuestos.items():
-        real = gastos_por_cat.get(cat, 0.0)
-        # Calcular porcentaje seguro
-        pct = min(real / tope, 1.0) if tope > 0 else 0
-        
-        col_bar, col_txt = st.columns([3, 1])
-        with col_bar:
-            st.progress(pct, text=cat)
-        with col_txt:
-            st.caption(f"S/ {real:.0f} / {tope}")
+    /* 4. TARJETAS (TEXTO BLANCO) */
+    .tarjeta-capigastos *, .tarjeta-capigastos div {{ 
+        color: white !important; 
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
+    }}
 
-st.divider()
+    /* 5. INPUTS */
+    .stTextInput input, .stNumberInput input, div[data-baseweb="select"] > div {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border: 2px solid #8B4513 !important;
+    }}
 
-# --- PIE: HISTORIAL ---
-st.subheader("📜 Historial de Movimientos")
-with st.expander("Ver tabla de datos", expanded=True):
-    if not df_mes.empty:
-        # Mostramos columnas clave
-        st.dataframe(
-            df_mes[['Fecha', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']].sort_values('Fecha', ascending=False),
-            use_container_width=True,
-            hide_index=True
-        )
-        # Botón de borrado de emergencia
-        if st.button("⚠️ Borrar último registro (No hay vuelta atrás)"):
-            rows = len(ws_registro.get_all_values())
-            if rows > 1:
-                ws_registro.delete_rows(rows)
-                limpiar_cache()
-                st.warning("Registro borrado.")
-                time.sleep(1)
-                st.rerun()
-    else:
-        st.info("No hay movimientos registrados en este mes.")
+    /* 6. BOTONES ESTILO PASTILLA */
+    div.stButton > button:has(p:contains('Agregar')) {{
+        background-color: #9ACD32 !important; color: #2F4F4F !important;
+        border: 3px solid #556B2F !important; border-radius: 50px !important;
+        font-weight: 900 !important;
+    }}
+    div.stButton > button:has(p:contains('Eliminar')) {{
+        background-color: #FA8072 !important; color: #581818 !important;
+        border: 3px solid #8B0000 !important; border-radius: 50px !important;
+        font-weight: 900 !important;
+    }}
+    /* Botón Guardar */
+    div.stButton > button:has(p:contains('GUARDAR')) {{
+        background-color: #8B4513 !important; color: white !important;
+        border: 2px solid #5e2f0d !important; border-radius: 20px !important;
+    }}
+    /* Botón Pequeño de Borrar Fila (Icono) */
+    div.stButton > button:has(p:contains('🗑️')) {{
+        background-color: #FFE4E1 !important;
+        color: red !important;
+        border: 1px solid red !important;
+        border-radius: 5px !important;
+        padding: 0px 5px !important;
+        height: 35px !important;
+    }}
+
+    /* 7. TARJETA VISUAL */
+    .tarjeta-capigastos {{
+        background-color: #8B4513;
+        border-radius: 15px; padding: 15px; margin-bottom: 10px;
+        box-shadow: 0 4px 8px 0 rgba(0,0,0,0.3); position: relative; height: 180px;
+        background-size: 100% 100%; background-position: center;
+    }}
+    .barra-fondo {{ background-color: rgba(255, 255, 255, 0.3); border-radius: 5px; height: 6px; width: 100%; margin-top: 5px; }}
+    .barra-progreso {{ background-color: #4CAF50; height: 100%; border-radius: 5px; }}
+    
+    /* 8. LISTA DE MOVIMIENTOS (Fila estilizada) */
+    .fila-movimiento {{
+        background-color: #FFFFFF;
+        border-bottom: 1px solid #D3D3D3;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 5px;
+    }}
+
+</style>
+""", unsafe_allow_html=True)
+
+# --- LOGICA ---
+zona_peru = pyt
