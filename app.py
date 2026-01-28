@@ -33,7 +33,7 @@ try:
     ws_presupuestos = sh.worksheet("Presupuestos")
     ws_pendientes = sh.worksheet("Pendientes")
 except Exception as e:
-    st.error(f"⚠️ Error cargando hojas. Asegúrate de tener: Registro, Cuentas, Presupuestos, Pendientes. Detalle: {e}")
+    st.error(f"⚠️ Error cargando hojas: {e}")
     st.stop()
 
 # --- 3. FUNCIONES LÓGICAS ---
@@ -47,6 +47,11 @@ def intento_seguro(funcion):
         time.sleep(2)
         return funcion()
 
+# Función auxiliar para formatear dinero para Google Sheets (PERÚ)
+def formato_monto_sheet(monto_float):
+    # Convierte 15.70 -> "15,70" para que Google no se confunda
+    return f"{monto_float:.2f}".replace('.', ',')
+
 @st.cache_data(ttl=60)
 def obtener_datos():
     cols = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
@@ -56,14 +61,10 @@ def obtener_datos():
         
         df = pd.DataFrame(data)
         
-        # Guardar Fila Original (Para borrar correctamente)
         df['Fila_Original'] = df.index + 2 
         
-        # --- CORRECCIÓN MATEMÁTICA AQUÍ ---
-        # 1. Convertir a texto
-        # 2. Reemplazar la COMA por PUNTO (15,70 -> 15.70)
+        # --- LECTURA: Convertimos COMAS a PUNTOS para que Python sume bien ---
         df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
-        # 3. Convertir a número
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
         
         df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
@@ -94,10 +95,8 @@ def obtener_pendientes():
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2
         
-        # --- CORRECCIÓN MATEMÁTICA TAMBIÉN AQUÍ ---
         df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
-        
         return df
     except:
         return pd.DataFrame(columns=cols + ['Fila_Original'])
@@ -107,13 +106,13 @@ def borrar_registro(fila):
     try:
         ws_registro.delete_rows(fila)
         limpiar_cache(); st.toast("🗑️ Eliminado"); time.sleep(1); st.rerun()
-    except: st.error("Error al borrar (intenta de nuevo)")
+    except: st.error("Error al borrar")
 
 def pagar_pendiente(fila):
     try:
         ws_pendientes.delete_rows(fila)
         limpiar_cache(); st.toast("✅ Pagado"); time.sleep(1); st.rerun()
-    except: st.error("Error al pagar (intenta de nuevo)")
+    except: st.error("Error al pagar")
 
 # --- POPUPS ---
 @st.dialog("➕ Nueva Cuenta")
@@ -134,13 +133,13 @@ def dialog_borrar_cuenta(lista):
 @st.dialog("⏰ Nuevo Gasto Pendiente")
 def dialog_agregar_pendiente():
     desc = st.text_input("Descripción (Ej: Luz)")
-    # Monto empieza en 0.00 para evitar errores visuales
     monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
     fecha = st.date_input("Vencimiento")
     
     if st.button("Agendar"):
-        # Guardamos como string para evitar problemas de formato
-        ws_pendientes.append_row([desc, monto, str(fecha)])
+        # USAMOS LA CORRECCIÓN DE MONTO AQUI TAMBIEN
+        monto_str = formato_monto_sheet(monto)
+        ws_pendientes.append_row([desc, monto_str, str(fecha)])
         limpiar_cache(); st.rerun()
 
 # --- 5. INTERFAZ OPERATIVA ---
@@ -154,7 +153,6 @@ presupuestos = obtener_presupuestos()
 st.title("💰 CAPIGASTOS: Panel Operativo")
 top1, top2, top3, top4 = st.columns(4)
 
-# Cálculos Totales
 saldo_global = (df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum())
 ahorro_hist = saldo_global
 
@@ -167,7 +165,6 @@ sel_mes = top3.selectbox("Mes", meses, index=hoy.month-1)
 sel_anio = top4.number_input("Año", value=hoy.year)
 idx_mes = meses.index(sel_mes) + 1
 
-# Filtro Mes
 if not df.empty:
     df_mes = df[(df['Fecha'].dt.month == idx_mes) & (df['Fecha'].dt.year == sel_anio)]
 else: df_mes = df
@@ -212,15 +209,19 @@ with col_izq:
         if st.button("GUARDAR", type="primary", use_container_width=True):
             f_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
             h_str = datetime.now(zona_peru).strftime("%H:%M:%S")
+            
+            # --- CORRECCIÓN MATEMÁTICA AL GUARDAR ---
+            monto_str = formato_monto_sheet(monto) # Se convierte a "15,70"
+            
             try:
                 if tipo == "Transferencia":
                     if c_ori == c_des: st.error("Cuentas iguales")
                     else:
-                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"]
-                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"]
+                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto_str, f"-> {c_des}: {desc}"]
+                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto_str, f"<- {c_ori}: {desc}"]
                         ws_registro.append_row(r1); ws_registro.append_row(r2)
                 else:
-                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc])
+                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto_str, desc])
                 
                 limpiar_cache(); st.success("Listo!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
@@ -307,7 +308,7 @@ with col_pend:
                     st.caption(f"S/ {row['Monto']:.2f} | Vence: {row['FechaLimite']}")
                 with pc2:
                     fp = row['Fila_Original']
-                    if st.button("✅ PAGADO", key=f"pay_{fp}"):
+                    if st.button("✅ PAGAR", key=f"pay_{fp}"):
                         pagar_pendiente(fp)
                 st.divider()
         else:
