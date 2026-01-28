@@ -224,4 +224,213 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- LOGICA ---
-zona_peru = pyt
+zona_peru = pytz.timezone('America/Lima')
+try:
+    df = obtener_datos()
+    lista_cuentas = obtener_cuentas()
+    presupuestos_dict = obtener_presupuestos()
+except:
+    st.warning("Cargando..."); time.sleep(1); st.rerun()
+
+# DATOS GLOBALES
+ing_hist, gas_hist, ahorro_vida, saldo_actual = 0,0,0,0
+if not df.empty:
+    ing_hist = df[df['Tipo']=='Ingreso']['Monto'].sum()
+    gas_hist = df[df['Tipo']=='Gasto']['Monto'].sum()
+    ahorro_vida = ing_hist - gas_hist
+    for c in lista_cuentas:
+        i = df[(df['Cuenta']==c)&(df['Tipo']=='Ingreso')]['Monto'].sum()
+        g = df[(df['Cuenta']==c)&(df['Tipo']=='Gasto')]['Monto'].sum()
+        saldo_actual += (i-g)
+
+# ==============================================================================
+# HEADER
+# ==============================================================================
+with st.container(border=True):
+    c1, c2, c3 = st.columns([1.5, 1.5, 1.5], vertical_alignment="center")
+    with c1:
+        cc1, cc2 = st.columns([1, 3])
+        with cc1:
+            if img_logo: st.markdown(f'<img src="data:image/png;base64,{img_logo}" width="80">', unsafe_allow_html=True)
+        with cc2: st.markdown("<h2>CAPIGASTOS</h2>", unsafe_allow_html=True)
+    with c2:
+        meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        now = datetime.now(zona_peru)
+        cm, ca = st.columns(2)
+        sel_mes = cm.selectbox("Mes", meses, index=now.month-1, label_visibility="collapsed")
+        sel_anio = ca.number_input("Año", value=now.year, label_visibility="collapsed")
+        mes_idx = meses.index(sel_mes) + 1
+    with c3:
+        st.markdown(f"<div style='text-align:right;'><b>Saldo Total:</b> S/ {saldo_actual:,.2f}<br><b>Ahorro Histórico:</b> S/ {ahorro_vida:,.2f}</div>", unsafe_allow_html=True)
+
+# ==============================================================================
+# CONSOLIDADO
+# ==============================================================================
+if not df.empty and 'Fecha' in df.columns:
+    df_f = df[(df['Fecha'].dt.month == mes_idx) & (df['Fecha'].dt.year == sel_anio)]
+else: df_f = pd.DataFrame(columns=df.columns)
+
+ing_m = df_f[df_f['Tipo']=='Ingreso']['Monto'].sum() if not df_f.empty else 0
+gas_m = df_f[df_f['Tipo']=='Gasto']['Monto'].sum() if not df_f.empty else 0
+bal_m = ing_m - gas_m
+
+with st.container(border=True):
+    st.markdown(f"<h4 style='text-align:center; margin:0;'>CONSOLIDADO: {sel_mes.upper()} {sel_anio}</h4>", unsafe_allow_html=True)
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Ingresos", f"S/ {ing_m:,.2f}")
+    k2.metric("Gastos", f"S/ {gas_m:,.2f}")
+    k3.metric("Ahorro", f"S/ {bal_m:,.2f}")
+
+st.write("")
+
+# ==============================================================================
+# CUERPO (FORMULARIO Y CUENTAS)
+# ==============================================================================
+col_izq, col_der = st.columns([1, 1.8], gap="medium")
+
+# --- IZQUIERDA: FORMULARIO ---
+with col_izq:
+    with st.container(border=True):
+        st.markdown("### 📝 FORMULARIO")
+        st.write("**Registrar:**")
+        op = st.radio("Tipo", ["Gasto", "Ingreso", "Transferencia"], horizontal=True, label_visibility="collapsed")
+        
+        with st.form("form_main", clear_on_submit=True):
+            u = st.selectbox("Usuario", ["Rodrigo", "Krys"])
+            if op == "Transferencia":
+                c_ori = st.selectbox("Desde", lista_cuentas)
+                c_des = st.selectbox("Hacia", lista_cuentas)
+                cta = c_ori; cat = "Transferencia"
+            else:
+                cta = st.selectbox("Cuenta", lista_cuentas)
+                if "Gasto" in op: cat = st.selectbox("Categoría", list(presupuestos_dict.keys())+["Otros", "Comida", "Taxi"])
+                else: cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo"])
+            
+            monto = st.number_input("Monto S/", min_value=0.01, format="%.2f")
+            desc = st.text_input("Descripción")
+            st.write("")
+            if st.form_submit_button("GUARDAR", use_container_width=True):
+                try:
+                    now_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
+                    time_str = datetime.now(zona_peru).strftime("%H:%M:%S")
+                    if op == "Transferencia":
+                        r1 = [now_str, time_str, u, c_ori, "Gasto", "Transferencia/Salida", monto, f"-> {c_des}: {desc}"]
+                        r2 = [now_str, time_str, u, c_des, "Ingreso", "Transferencia/Entrada", monto, f"<- {c_ori}: {desc}"]
+                        ws_registro.append_row(r1); ws_registro.append_row(r2)
+                    else:
+                        tipo = "Gasto" if "Gasto" in op else "Ingreso"
+                        ws_registro.append_row([now_str, time_str, u, cta, tipo, cat, monto, desc])
+                    limpiar_cache(); st.success("OK"); time.sleep(1); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+
+# --- DERECHA: CUENTAS Y METAS ---
+with col_der:
+    with st.container(border=True):
+        ch1, ch2, ch3 = st.columns([4, 1, 1], vertical_alignment="bottom")
+        ch1.markdown("### 💳 CUENTAS")
+        if ch2.button("Agregar", key="add", use_container_width=True): dialog_agregar_cuenta()
+        if ch3.button("Eliminar", key="del", use_container_width=True): dialog_eliminar_cuenta(lista_cuentas)
+        
+        cols_tarjetas = st.columns(3)
+        for i, cuenta in enumerate(lista_cuentas):
+            if not df.empty:
+                ing_h = df[(df['Cuenta']==cuenta)&(df['Tipo']=='Ingreso')]['Monto'].sum()
+                gas_h = df[(df['Cuenta']==cuenta)&(df['Tipo']=='Gasto')]['Monto'].sum()
+                saldo = ing_h - gas_h
+            else: ing_h, gas_h, saldo = 0, 0, 0
+            
+            pct = min(max(saldo/ing_h, 0.0), 1.0)*100 if ing_h > 0 else 0
+            bg = f"background-image: url('data:image/png;base64,{img_tarjeta}');" if img_tarjeta else "background-color: #8B4513;"
+            
+            html = f"""
+            <div class="tarjeta-capigastos" style="{bg}">
+                <div style="position:absolute; top:15px; left:15px;">
+                    <div style="font-size:10px; opacity:0.9;">CAPIGASTOS CARD</div>
+                    <div style="font-size:14px; font-weight:bold; text-transform:uppercase;">{cuenta}</div>
+                </div>
+                <div style="position:absolute; top:60px; right:15px; text-align:right;">
+                    <div style="font-size:9px;">DISPONIBLE</div>
+                    <div style="font-size:20px; font-weight:bold;">S/ {saldo:,.2f}</div>
+                </div>
+                <div style="position:absolute; bottom:15px; left:15px; right:15px;">
+                    <div class="barra-fondo"><div class="barra-progreso" style="width:{pct}%;"></div></div>
+                </div>
+            </div>
+            """
+            with cols_tarjetas[i%3]: st.markdown(html, unsafe_allow_html=True)
+
+    st.write("")
+
+    with st.container(border=True):
+        st.markdown("### 🎯 METAS")
+        if not df_f.empty: gas_cat = df_f[df_f['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
+        else: gas_cat = {}
+        cm1, cm2 = st.columns(2)
+        idx_m = 0
+        for cat, tope in presupuestos_dict.items():
+            real = gas_cat.get(cat, 0)
+            pct = min(real/tope, 1.0) if tope > 0 else 0
+            with (cm1 if idx_m % 2 == 0 else cm2):
+                st.write(f"**{cat}**")
+                st.progress(pct)
+                st.caption(f"S/ {real:,.0f} de {tope:,.0f}")
+            idx_m += 1
+
+st.write("")
+
+# ==============================================================================
+# 4. PIE DE PÁGINA: HISTORIAL CON BORRADO INDIVIDUAL
+# ==============================================================================
+col_foot_left, col_foot_right = st.columns([1.5, 1], gap="medium")
+
+with col_foot_left:
+    with st.container(border=True):
+        st.markdown("### 📜 HISTORIAL (BORRADO INDIVIDUAL)")
+        
+        if not df_f.empty:
+            # Ordenamos por fecha descendente pero mantenemos la fila original
+            df_mostrar = df_f.sort_values('Fecha', ascending=False).reset_index(drop=True)
+            
+            # Encabezados
+            h1, h2, h3, h4, h5, h6 = st.columns([2, 3, 2, 2, 3, 1])
+            h1.write("**Fecha**")
+            h2.write("**Cuenta**")
+            h3.write("**Monto**")
+            h4.write("**Categ**")
+            h5.write("**Desc**")
+            h6.write("**Acción**")
+            st.divider()
+            
+            # ITERAMOS FILA POR FILA
+            for idx, row in df_mostrar.iterrows():
+                c1, c2, c3, c4, c5, c6 = st.columns([2, 3, 2, 2, 3, 1])
+                
+                # Color del monto (Verde ingreso, Rojo gasto)
+                color_monto = "green" if row['Tipo'] == 'Ingreso' else "red"
+                str_monto = f":{color_monto}[S/ {row['Monto']:.2f}]"
+                
+                with c1: st.write(row['Fecha'].strftime("%d/%m"))
+                with c2: st.caption(row['Cuenta'])
+                with c3: st.markdown(str_monto)
+                with c4: st.caption(row['Categoria'])
+                with c5: st.caption(row['Descripcion'] if row['Descripcion'] else "-")
+                
+                # BOTÓN BORRAR INDIVIDUAL
+                with c6:
+                    # Usamos la Fila_Original que guardamos en obtener_datos
+                    fila_a_borrar = row['Fila_Original']
+                    if st.button("🗑️", key=f"btn_del_{fila_a_borrar}"):
+                        borrar_fila_especifica(fila_a_borrar)
+                        st.rerun() # Recargamos inmediatamente
+                
+        else:
+            st.info("Sin datos para este mes.")
+
+with col_foot_right:
+    with st.container(border=True):
+        st.markdown("### ⏰ PAGOS PENDIENTES")
+        st.info("Próximos vencimientos:")
+        st.markdown("- 📅 **Luz del Sur:** 15/Feb (S/ 120.00)\n- 📅 **Internet:** 20/Feb (S/ 89.00)")
+        st.text_input("Agregar recordatorio:")
+        st.button("Añadir")
+
