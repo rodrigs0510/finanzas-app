@@ -224,7 +224,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- LOGICA ---
+# ZONA HORARIA CORREGIDA
 zona_peru = pytz.timezone('America/Lima')
+
 try:
     df = obtener_datos()
     lista_cuentas = obtener_cuentas()
@@ -433,4 +435,3 @@ with col_foot_right:
         st.markdown("- 📅 **Luz del Sur:** 15/Feb (S/ 120.00)\n- 📅 **Internet:** 20/Feb (S/ 89.00)")
         st.text_input("Agregar recordatorio:")
         st.button("Añadir")
-
