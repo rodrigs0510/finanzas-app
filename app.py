@@ -9,54 +9,43 @@ import pytz
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="wide", page_icon="💰")
 
-# --- 2. CONEXIÓN INTELIGENTE (Anti-Error 429) ---
+# --- 2. CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    # Intento de conexión con reintentos
-    max_retries = 3
-    for i in range(max_retries):
-        try:
-            if "gcp_service_account" in st.secrets:
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
-            else:
-                creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-            
-            client = gspread.authorize(creds)
-            sheet = client.open("Finanzas_RodrigoKrys")
-            return sheet
-        except Exception as e:
-            if i == max_retries - 1:
-                st.error(f"❌ Error fatal de conexión: {e}")
-                st.stop()
-            time.sleep(5) # Espera 5 segundos si falla antes de reintentar
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+        else:
+            creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        
+        client = gspread.authorize(creds)
+        sheet = client.open("Finanzas_RodrigoKrys")
+        return sheet
+    except Exception as e:
+        st.error(f"❌ Error de conexión: {e}")
+        st.stop()
 
 try:
     sh = conectar_google_sheets()
-    # Cargamos las hojas solo cuando es necesario
     ws_registro = sh.worksheet("Registro")
     ws_cuentas = sh.worksheet("Cuentas")
     ws_presupuestos = sh.worksheet("Presupuestos")
     ws_pendientes = sh.worksheet("Pendientes")
 except Exception as e:
-    st.error(f"Error cargando hojas: {e}")
+    st.error(f"⚠️ Error cargando hojas. Asegúrate de tener: Registro, Cuentas, Presupuestos, Pendientes. Detalle: {e}")
     st.stop()
 
-# --- 3. FUNCIONES LÓGICAS BLINDADAS ---
+# --- 3. FUNCIONES LÓGICAS ---
 def limpiar_cache():
     st.cache_data.clear()
 
-# Decorador para manejar el error de cuota en las llamadas de lectura/escritura
 def intento_seguro(funcion):
     try:
         return funcion()
-    except Exception as e:
-        if "429" in str(e):
-            time.sleep(10) # Si es error de cuota, espera 10 segundos
-            return funcion()
-        else:
-            time.sleep(2)
-            return funcion()
+    except Exception:
+        time.sleep(2)
+        return funcion()
 
 @st.cache_data(ttl=60)
 def obtener_datos():
@@ -66,16 +55,15 @@ def obtener_datos():
         if not data: return pd.DataFrame(columns=cols + ['Fila_Original'])
         
         df = pd.DataFrame(data)
-        for c in cols:
-            if c not in df.columns: df[c] = ""
-            
+        
+        # Guardar Fila Original (Para borrar correctamente)
         df['Fila_Original'] = df.index + 2 
         
-        # --- CORRECCIÓN CRÍTICA DE DECIMALES ---
-        # 1. Convertimos a string
-        # 2. Reemplazamos coma por punto (15,70 -> 15.70)
-        # 3. Convertimos a número
+        # --- CORRECCIÓN MATEMÁTICA AQUÍ ---
+        # 1. Convertir a texto
+        # 2. Reemplazar la COMA por PUNTO (15,70 -> 15.70)
         df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
+        # 3. Convertir a número
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
         
         df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
@@ -106,9 +94,10 @@ def obtener_pendientes():
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2
         
-        # Corrección de decimales también aquí
+        # --- CORRECCIÓN MATEMÁTICA TAMBIÉN AQUÍ ---
         df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
+        
         return df
     except:
         return pd.DataFrame(columns=cols + ['Fila_Original'])
@@ -116,22 +105,22 @@ def obtener_pendientes():
 # --- ACCIONES ---
 def borrar_registro(fila):
     try:
-        intento_seguro(lambda: ws_registro.delete_rows(fila))
+        ws_registro.delete_rows(fila)
         limpiar_cache(); st.toast("🗑️ Eliminado"); time.sleep(1); st.rerun()
-    except: st.error("Error borrando (API saturada), intenta de nuevo.")
+    except: st.error("Error al borrar (intenta de nuevo)")
 
 def pagar_pendiente(fila):
     try:
-        intento_seguro(lambda: ws_pendientes.delete_rows(fila))
+        ws_pendientes.delete_rows(fila)
         limpiar_cache(); st.toast("✅ Pagado"); time.sleep(1); st.rerun()
-    except: st.error("Error actualizando (API saturada).")
+    except: st.error("Error al pagar (intenta de nuevo)")
 
 # --- POPUPS ---
 @st.dialog("➕ Nueva Cuenta")
 def dialog_cuenta():
     n = st.text_input("Nombre")
     if st.button("Guardar"):
-        intento_seguro(lambda: ws_cuentas.append_row([n]))
+        ws_cuentas.append_row([n])
         limpiar_cache(); st.rerun()
 
 @st.dialog("🗑️ Eliminar Cuenta")
@@ -139,20 +128,22 @@ def dialog_borrar_cuenta(lista):
     s = st.selectbox("Elegir", lista)
     if st.button("Confirmar"):
         cell = ws_cuentas.find(s)
-        intento_seguro(lambda: ws_cuentas.delete_rows(cell.row))
+        ws_cuentas.delete_rows(cell.row)
         limpiar_cache(); st.rerun()
 
-@st.dialog("⏰ Nuevo Pendiente")
+@st.dialog("⏰ Nuevo Gasto Pendiente")
 def dialog_agregar_pendiente():
-    desc = st.text_input("Descripción")
-    # MONTO CORREGIDO: Empieza en 0.00
-    monto = st.number_input("Monto (S/)", min_value=0.00, value=0.00, step=0.10)
+    desc = st.text_input("Descripción (Ej: Luz)")
+    # Monto empieza en 0.00 para evitar errores visuales
+    monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
     fecha = st.date_input("Vencimiento")
+    
     if st.button("Agendar"):
-        intento_seguro(lambda: ws_pendientes.append_row([desc, monto, str(fecha)]))
+        # Guardamos como string para evitar problemas de formato
+        ws_pendientes.append_row([desc, monto, str(fecha)])
         limpiar_cache(); st.rerun()
 
-# --- INTERFAZ ---
+# --- 5. INTERFAZ OPERATIVA ---
 zona_peru = pytz.timezone('America/Lima')
 df = obtener_datos()
 df_pendientes = obtener_pendientes()
@@ -165,8 +156,10 @@ top1, top2, top3, top4 = st.columns(4)
 
 # Cálculos Totales
 saldo_global = (df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto']['Monto'].sum())
+ahorro_hist = saldo_global
+
 top1.metric("Saldo Disponible", f"S/ {saldo_global:,.2f}")
-top2.metric("Ahorro Histórico", f"S/ {saldo_global:,.2f}") # Simplificado para evitar 429
+top2.metric("Ahorro Histórico", f"S/ {ahorro_hist:,.2f}")
 
 meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 hoy = datetime.now(zona_peru)
@@ -196,10 +189,10 @@ st.write("")
 # --- SECCIÓN 2: OPERATIVA ---
 col_izq, col_der = st.columns([1, 1.5], gap="medium")
 
-# FORMULARIO
+# FORMULARIO (Izquierda)
 with col_izq:
     with st.container(border=True):
-        st.subheader("📝 Registrar")
+        st.subheader("📝 Registrar Operación")
         tipo = st.radio("Acción", ["Gasto", "Ingreso", "Transferencia"], horizontal=True)
         usuario = st.selectbox("Usuario", ["Rodrigo", "Krys"])
         
@@ -210,11 +203,10 @@ with col_izq:
         else:
             cta = st.selectbox("Cuenta", lista_cuentas)
             if tipo == "Gasto":
-                cat = st.selectbox("Categoría", list(presupuestos.keys()) + ["Otros", "Comida"])
+                cat = st.selectbox("Categoría", list(presupuestos.keys()) + ["Otros", "Comida", "Taxi"])
             else: cat = st.selectbox("Categoría", ["Sueldo", "Negocio", "Regalo"])
         
-        # MONTO CORREGIDO: min_value=0.00
-        monto = st.number_input("Monto S/", min_value=0.00, value=0.00, step=0.10, format="%.2f")
+        monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
         desc = st.text_input("Detalle")
         
         if st.button("GUARDAR", type="primary", use_container_width=True):
@@ -226,17 +218,16 @@ with col_izq:
                     else:
                         r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"]
                         r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"]
-                        intento_seguro(lambda: ws_registro.append_row(r1))
-                        intento_seguro(lambda: ws_registro.append_row(r2))
+                        ws_registro.append_row(r1); ws_registro.append_row(r2)
                 else:
-                    intento_seguro(lambda: ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc]))
+                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc])
                 
                 limpiar_cache(); st.success("Listo!"); time.sleep(1); st.rerun()
-            except Exception as e: st.error(f"Error guardando (Espera unos seg): {e}")
+            except Exception as e: st.error(f"Error: {e}")
 
 # PANELES DERECHOS
 with col_der:
-    # CUENTAS
+    # 1. CUENTAS
     with st.container(border=True):
         h1, h2, h3 = st.columns([3, 1, 1])
         h1.subheader("💳 Cuentas")
@@ -251,9 +242,9 @@ with col_der:
 
     st.write("")
     
-    # METAS
+    # 2. METAS
     with st.container(border=True):
-        st.subheader("🎯 Metas")
+        st.subheader("🎯 Metas del Mes")
         if not df_mes.empty:
             g_cat = df_mes[df_mes['Tipo']=='Gasto'].groupby('Categoria')['Monto'].sum()
         else: g_cat = {}
@@ -261,7 +252,7 @@ with col_der:
         mc1, mc2 = st.columns(2)
         idx = 0
         for cat, tope in presupuestos.items():
-            real = g_cat.get(cat, 0)
+            real = g_cat.get(cat, 0.0)
             pct = min(real/tope, 1.0) if tope > 0 else 0
             with (mc1 if idx % 2 == 0 else mc2):
                 st.write(f"**{cat}**")
@@ -274,16 +265,15 @@ st.write("")
 # --- SECCIÓN 3: TABLAS ---
 col_hist, col_pend = st.columns([1.5, 1], gap="medium")
 
-# HISTORIAL
+# HISTORIAL (IZQUIERDA)
 with col_hist:
     with st.container(border=True):
         st.subheader("📜 Historial")
         if not df_mes.empty:
             df_show = df_mes.sort_values('Fecha', ascending=False)
             
-            # CABECERAS
             c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 3, 1])
-            c1.markdown("**Fecha**"); c2.markdown("**Cuenta**"); c3.markdown("**Monto**"); c4.markdown("**Detalle**"); c5.markdown("**Borrar**")
+            c1.markdown("**Fecha**"); c2.markdown("**Cuenta**"); c3.markdown("**Monto**"); c4.markdown("**Detalle**"); c5.markdown("**X**")
             st.divider()
             
             for idx, row in df_show.iterrows():
@@ -291,7 +281,7 @@ with col_hist:
                 cc1.write(row['Fecha'].strftime("%d/%m"))
                 cc2.caption(row['Cuenta'])
                 color = "green" if row['Tipo'] == 'Ingreso' else "red"
-                cc3.markdown(f":{color}[{row['Monto']:.2f}]") # Formato 2 decimales
+                cc3.markdown(f":{color}[{row['Monto']:.2f}]") 
                 cc4.caption(f"{row['Categoria']} - {row['Descripcion']}")
                 
                 fila_real = row['Fila_Original']
@@ -300,7 +290,7 @@ with col_hist:
         else:
             st.info("Sin datos.")
 
-# PENDIENTES
+# PENDIENTES (DERECHA)
 with col_pend:
     with st.container(border=True):
         ph1, ph2 = st.columns([3, 1])
@@ -317,7 +307,7 @@ with col_pend:
                     st.caption(f"S/ {row['Monto']:.2f} | Vence: {row['FechaLimite']}")
                 with pc2:
                     fp = row['Fila_Original']
-                    if st.button("✅ PAGAR", key=f"pay_{fp}"):
+                    if st.button("✅ PAGADO", key=f"pay_{fp}"):
                         pagar_pendiente(fp)
                 st.divider()
         else:
