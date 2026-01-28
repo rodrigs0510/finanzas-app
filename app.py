@@ -47,11 +47,6 @@ def intento_seguro(funcion):
         time.sleep(2)
         return funcion()
 
-# Función auxiliar para formatear dinero para Google Sheets (PERÚ)
-def formato_monto_sheet(monto_float):
-    # Convierte 15.70 -> "15,70" para que Google no se confunda
-    return f"{monto_float:.2f}".replace('.', ',')
-
 @st.cache_data(ttl=60)
 def obtener_datos():
     cols = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
@@ -63,8 +58,13 @@ def obtener_datos():
         
         df['Fila_Original'] = df.index + 2 
         
-        # --- LECTURA: Convertimos COMAS a PUNTOS para que Python sume bien ---
+        # LECTURA ROBUSTA: Limpiamos lo que venga de Google
+        # 1. Convertimos a string para manipular
+        # 2. Reemplazamos coma por punto por si acaso Google lo guardó con coma
         df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
+        # 3. Quitamos cualquier símbolo de moneda 'S/' o '$' si se coló
+        df['Monto'] = df['Monto'].astype(str).str.replace(r'[^\d.-]', '', regex=True)
+        # 4. Convertimos a número
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
         
         df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
@@ -95,7 +95,9 @@ def obtener_pendientes():
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2
         
+        # Limpieza robusta igual que arriba
         df['Monto'] = df['Monto'].astype(str).str.replace(',', '.', regex=False)
+        df['Monto'] = df['Monto'].astype(str).str.replace(r'[^\d.-]', '', regex=True)
         df['Monto'] = pd.to_numeric(df['Monto'], errors='coerce').fillna(0.0)
         return df
     except:
@@ -137,9 +139,8 @@ def dialog_agregar_pendiente():
     fecha = st.date_input("Vencimiento")
     
     if st.button("Agendar"):
-        # USAMOS LA CORRECCIÓN DE MONTO AQUI TAMBIEN
-        monto_str = formato_monto_sheet(monto)
-        ws_pendientes.append_row([desc, monto_str, str(fecha)])
+        # GUARDAMOS EL NÚMERO PURO (FLOAT)
+        ws_pendientes.append_row([desc, monto, str(fecha)])
         limpiar_cache(); st.rerun()
 
 # --- 5. INTERFAZ OPERATIVA ---
@@ -210,18 +211,17 @@ with col_izq:
             f_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
             h_str = datetime.now(zona_peru).strftime("%H:%M:%S")
             
-            # --- CORRECCIÓN MATEMÁTICA AL GUARDAR ---
-            monto_str = formato_monto_sheet(monto) # Se convierte a "15,70"
-            
             try:
                 if tipo == "Transferencia":
                     if c_ori == c_des: st.error("Cuentas iguales")
                     else:
-                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto_str, f"-> {c_des}: {desc}"]
-                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto_str, f"<- {c_ori}: {desc}"]
+                        # ENVIAMOS 'monto' SIN COMILLAS (COMO NÚMERO)
+                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"]
+                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"]
                         ws_registro.append_row(r1); ws_registro.append_row(r2)
                 else:
-                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto_str, desc])
+                    # ENVIAMOS 'monto' SIN COMILLAS (COMO NÚMERO)
+                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc])
                 
                 limpiar_cache(); st.success("Listo!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
