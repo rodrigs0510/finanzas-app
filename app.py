@@ -5,7 +5,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import time
 import pytz 
-import re
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="CAPIGASTOS", layout="wide", page_icon="💰")
@@ -19,11 +18,12 @@ def conectar_google_sheets():
             creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
         else:
             creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        
         client = gspread.authorize(creds)
         sheet = client.open("Finanzas_RodrigoKrys")
         return sheet
     except Exception as e:
-        st.error(f"❌ Error conectando: {e}")
+        st.error(f"❌ Error de conexión: {e}")
         st.stop()
 
 try:
@@ -33,10 +33,10 @@ try:
     ws_presupuestos = sh.worksheet("Presupuestos")
     ws_pendientes = sh.worksheet("Pendientes")
 except Exception as e:
-    st.error(f"⚠️ Revisa las pestañas de tu Excel: {e}")
+    st.error(f"⚠️ Error: Faltan hojas en tu Excel. {e}")
     st.stop()
 
-# --- 3. FUNCIONES INTELIGENTES ---
+# --- 3. FUNCIONES LÓGICAS INTELIGENTES ---
 def limpiar_cache():
     st.cache_data.clear()
 
@@ -47,20 +47,23 @@ def intento_seguro(funcion):
         time.sleep(2)
         return funcion()
 
-# FUNCION MAESTRA DE LIMPIEZA DE DINERO
-def limpiar_monto_maestro(serie):
-    # 1. Convertir a texto para manipular
+# --- MAGIA: FORMATEO PERUANO (Importante para evitar el error x100) ---
+def formatear_para_sheets(valor_float):
+    # Convierte 23.85 -> "23,85" (String con coma)
+    # Esto obliga a Google Sheets (Español) a entenderlo como decimal
+    return f"{valor_float:.2f}".replace('.', ',')
+
+def limpiar_monto_leido(serie):
+    # Lee lo que sea que Google devuelva y lo convierte a Float de Python
     s = serie.astype(str)
-    # 2. PASO CRÍTICO: Si hay coma, la volvemos punto (15,7 -> 15.7)
+    # Si viene "23,85", cambia coma por punto -> "23.85"
     s = s.str.replace(',', '.', regex=False)
-    # 3. Limpiar cualquier símbolo raro (S/, $, espacios), dejando solo números y puntos
+    # Limpia simbolos raros
     s = s.str.replace(r'[^\d.-]', '', regex=True)
-    # 4. Convertir a número (Float)
     return pd.to_numeric(s, errors='coerce').fillna(0.0)
 
-# CAMBIAMOS EL NOMBRE PARA FORZAR RECARGA DE CACHÉ (V27)
 @st.cache_data(ttl=60)
-def obtener_datos_v27():
+def obtener_datos_v28():
     cols = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     try:
         data = intento_seguro(lambda: ws_registro.get_all_records())
@@ -69,8 +72,8 @@ def obtener_datos_v27():
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2 
         
-        # APLICAMOS LA CURA
-        df['Monto'] = limpiar_monto_maestro(df['Monto'])
+        # Limpieza Maestra
+        df['Monto'] = limpiar_monto_leido(df['Monto'])
         
         df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
         return df.dropna(subset=['Fecha'])
@@ -92,17 +95,14 @@ def obtener_presupuestos():
     except: return {}
 
 @st.cache_data(ttl=60)
-def obtener_pendientes_v27():
+def obtener_pendientes():
     cols = ['Descripcion', 'Monto', 'FechaLimite']
     try:
         data = intento_seguro(lambda: ws_pendientes.get_all_records())
         if not data: return pd.DataFrame(columns=cols + ['Fila_Original'])
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2
-        
-        # APLICAMOS LA CURA
-        df['Monto'] = limpiar_monto_maestro(df['Monto'])
-        
+        df['Monto'] = limpiar_monto_leido(df['Monto'])
         return df
     except:
         return pd.DataFrame(columns=cols + ['Fila_Original'])
@@ -112,13 +112,13 @@ def borrar_registro(fila):
     try:
         ws_registro.delete_rows(fila)
         limpiar_cache(); st.toast("🗑️ Eliminado"); time.sleep(1); st.rerun()
-    except: st.error("Error API - Reintenta")
+    except: st.error("Error API")
 
 def pagar_pendiente(fila):
     try:
         ws_pendientes.delete_rows(fila)
         limpiar_cache(); st.toast("✅ Pagado"); time.sleep(1); st.rerun()
-    except: st.error("Error API - Reintenta")
+    except: st.error("Error API")
 
 # --- POPUPS ---
 @st.dialog("➕ Nueva Cuenta")
@@ -142,15 +142,16 @@ def dialog_agregar_pendiente():
     monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
     fecha = st.date_input("Vencimiento")
     if st.button("Agendar"):
-        # GUARDAR COMO FLOAT PURO (SIN COMILLAS)
-        ws_pendientes.append_row([desc, monto, str(fecha)])
+        # USAMOS EL FORMATEADOR
+        monto_str = formatear_para_sheets(monto)
+        ws_pendientes.append_row([desc, monto_str, str(fecha)])
         limpiar_cache(); st.rerun()
 
 # --- 5. INTERFAZ OPERATIVA ---
 zona_peru = pytz.timezone('America/Lima')
-# LLAMAMOS A LAS FUNCIONES V27
-df = obtener_datos_v27()
-df_pendientes = obtener_pendientes_v27()
+# Llamamos funciones v28
+df = obtener_datos_v28()
+df_pendientes = obtener_pendientes()
 lista_cuentas = obtener_cuentas()
 presupuestos = obtener_presupuestos()
 
@@ -162,7 +163,7 @@ saldo_global = (df[df['Tipo']=='Ingreso']['Monto'].sum() - df[df['Tipo']=='Gasto
 ahorro_hist = saldo_global
 
 top1.metric("Saldo Disponible", f"S/ {saldo_global:,.2f}")
-top2.metric("Ahorro Histórico", f"S/ {saldo_global:,.2f}")
+top2.metric("Ahorro Histórico", f"S/ {ahorro_hist:,.2f}")
 
 # FILTROS
 meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -216,17 +217,18 @@ with col_izq:
             f_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
             h_str = datetime.now(zona_peru).strftime("%H:%M:%S")
             
+            # --- CORRECCIÓN VITAL: PUNTO A COMA ---
+            monto_str = formatear_para_sheets(monto)
+            
             try:
                 if tipo == "Transferencia":
                     if c_ori == c_des: st.error("Misma cuenta")
                     else:
-                        # GUARDAR FLOAT PURO
-                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"]
-                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"]
+                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto_str, f"-> {c_des}: {desc}"]
+                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto_str, f"<- {c_ori}: {desc}"]
                         ws_registro.append_row(r1); ws_registro.append_row(r2)
                 else:
-                    # GUARDAR FLOAT PURO
-                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc])
+                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto_str, desc])
                 
                 limpiar_cache(); st.success("Guardado"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
@@ -286,6 +288,7 @@ with col_hist:
                 cc3.markdown(f":{color}[{row['Monto']:.2f}]") 
                 cc4.caption(f"{row['Categoria']} - {row['Descripcion']}")
                 
+                # BOTON DE BORRADO VITAL
                 fp = row['Fila_Original']
                 if cc5.button("🗑️", key=f"d_{fp}"):
                     borrar_registro(fp)
