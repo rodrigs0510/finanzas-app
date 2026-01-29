@@ -23,7 +23,7 @@ def conectar_google_sheets():
         sheet = client.open("Finanzas_RodrigoKrys")
         return sheet
     except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
+        st.error(f"❌ Error conectando: {e}")
         st.stop()
 
 try:
@@ -33,10 +33,10 @@ try:
     ws_presupuestos = sh.worksheet("Presupuestos")
     ws_pendientes = sh.worksheet("Pendientes")
 except Exception as e:
-    st.error(f"⚠️ Error: Faltan hojas en tu Excel. {e}")
+    st.error(f"⚠️ Faltan hojas en el Excel: {e}")
     st.stop()
 
-# --- 3. FUNCIONES LÓGICAS INTELIGENTES ---
+# --- 3. FUNCIONES LÓGICAS ---
 def limpiar_cache():
     st.cache_data.clear()
 
@@ -47,23 +47,19 @@ def intento_seguro(funcion):
         time.sleep(2)
         return funcion()
 
-# --- MAGIA: FORMATEO PERUANO (Importante para evitar el error x100) ---
-def formatear_para_sheets(valor_float):
-    # Convierte 23.85 -> "23,85" (String con coma)
-    # Esto obliga a Google Sheets (Español) a entenderlo como decimal
-    return f"{valor_float:.2f}".replace('.', ',')
-
-def limpiar_monto_leido(serie):
-    # Lee lo que sea que Google devuelva y lo convierte a Float de Python
+# --- LIMPIEZA DE DINERO MODO USA (PUNTO DECIMAL) ---
+def limpiar_monto_usa(serie):
+    # Convierte cualquier cosa a texto
     s = serie.astype(str)
-    # Si viene "23,85", cambia coma por punto -> "23.85"
-    s = s.str.replace(',', '.', regex=False)
-    # Limpia simbolos raros
+    # Elimina cualquier coma (por si acaso quedó alguna antigua)
+    s = s.str.replace(',', '', regex=False)
+    # Elimina símbolos de moneda
     s = s.str.replace(r'[^\d.-]', '', regex=True)
+    # Convierte a número
     return pd.to_numeric(s, errors='coerce').fillna(0.0)
 
 @st.cache_data(ttl=60)
-def obtener_datos_v28():
+def obtener_datos():
     cols = ['Fecha', 'Hora', 'Usuario', 'Cuenta', 'Tipo', 'Categoria', 'Monto', 'Descripcion']
     try:
         data = intento_seguro(lambda: ws_registro.get_all_records())
@@ -72,8 +68,8 @@ def obtener_datos_v28():
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2 
         
-        # Limpieza Maestra
-        df['Monto'] = limpiar_monto_leido(df['Monto'])
+        # AQUI USAMOS LA LIMPIEZA USA (PUNTO DECIMAL)
+        df['Monto'] = limpiar_monto_usa(df['Monto'])
         
         df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
         return df.dropna(subset=['Fecha'])
@@ -102,7 +98,7 @@ def obtener_pendientes():
         if not data: return pd.DataFrame(columns=cols + ['Fila_Original'])
         df = pd.DataFrame(data)
         df['Fila_Original'] = df.index + 2
-        df['Monto'] = limpiar_monto_leido(df['Monto'])
+        df['Monto'] = limpiar_monto_usa(df['Monto'])
         return df
     except:
         return pd.DataFrame(columns=cols + ['Fila_Original'])
@@ -136,21 +132,22 @@ def dialog_borrar_cuenta(lista):
         ws_cuentas.delete_rows(cell.row)
         limpiar_cache(); st.rerun()
 
-@st.dialog("⏰ Nuevo Pendiente")
+@st.dialog("⏰ Nuevo Gasto Pendiente")
 def dialog_agregar_pendiente():
     desc = st.text_input("Descripción")
+    # Python usa PUNTO por defecto
     monto = st.number_input("Monto (S/)", min_value=0.00, format="%.2f")
     fecha = st.date_input("Vencimiento")
+    
     if st.button("Agendar"):
-        # USAMOS EL FORMATEADOR
-        monto_str = formatear_para_sheets(monto)
-        ws_pendientes.append_row([desc, monto_str, str(fecha)])
+        # Enviamos el número tal cual (con punto)
+        # Como cambiamos Excel a USA, esto funcionará perfecto
+        ws_pendientes.append_row([desc, monto, str(fecha)])
         limpiar_cache(); st.rerun()
 
 # --- 5. INTERFAZ OPERATIVA ---
 zona_peru = pytz.timezone('America/Lima')
-# Llamamos funciones v28
-df = obtener_datos_v28()
+df = obtener_datos()
 df_pendientes = obtener_pendientes()
 lista_cuentas = obtener_cuentas()
 presupuestos = obtener_presupuestos()
@@ -165,7 +162,6 @@ ahorro_hist = saldo_global
 top1.metric("Saldo Disponible", f"S/ {saldo_global:,.2f}")
 top2.metric("Ahorro Histórico", f"S/ {ahorro_hist:,.2f}")
 
-# FILTROS
 meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 hoy = datetime.now(zona_peru)
 sel_mes = top3.selectbox("Mes", meses, index=hoy.month-1)
@@ -178,7 +174,7 @@ else: df_mes = df
 
 st.divider()
 
-# CONSOLIDADO
+# SECCIÓN 1: CONSOLIDADO
 with st.container(border=True):
     st.subheader(f"📊 Resumen {sel_mes} {sel_anio}")
     mi = df_mes[df_mes['Tipo']=='Ingreso']['Monto'].sum()
@@ -190,13 +186,13 @@ with st.container(border=True):
 
 st.write("") 
 
-# ZONA DE TRABAJO
+# SECCIÓN 2: OPERATIVA
 col_izq, col_der = st.columns([1, 1.5], gap="medium")
 
 # FORMULARIO
 with col_izq:
     with st.container(border=True):
-        st.subheader("📝 Registrar")
+        st.subheader("📝 Registrar Operación")
         tipo = st.radio("Acción", ["Gasto", "Ingreso", "Transferencia"], horizontal=True)
         usuario = st.selectbox("Usuario", ["Rodrigo", "Krys"])
         
@@ -217,24 +213,22 @@ with col_izq:
             f_str = datetime.now(zona_peru).strftime("%Y-%m-%d")
             h_str = datetime.now(zona_peru).strftime("%H:%M:%S")
             
-            # --- CORRECCIÓN VITAL: PUNTO A COMA ---
-            monto_str = formatear_para_sheets(monto)
-            
             try:
                 if tipo == "Transferencia":
                     if c_ori == c_des: st.error("Misma cuenta")
                     else:
-                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto_str, f"-> {c_des}: {desc}"]
-                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto_str, f"<- {c_ori}: {desc}"]
+                        r1 = [f_str, h_str, usuario, c_ori, "Gasto", "Transferencia", monto, f"-> {c_des}: {desc}"]
+                        r2 = [f_str, h_str, usuario, c_des, "Ingreso", "Transferencia", monto, f"<- {c_ori}: {desc}"]
                         ws_registro.append_row(r1); ws_registro.append_row(r2)
                 else:
-                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto_str, desc])
+                    ws_registro.append_row([f_str, h_str, usuario, cta, tipo, cat, monto, desc])
                 
                 limpiar_cache(); st.success("Guardado"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Error: {e}")
 
-# PANELES
+# PANELES DERECHOS
 with col_der:
+    # 1. CUENTAS
     with st.container(border=True):
         h1, h2, h3 = st.columns([3, 1, 1])
         h1.subheader("💳 Cuentas")
@@ -249,6 +243,7 @@ with col_der:
 
     st.write("")
     
+    # 2. METAS
     with st.container(border=True):
         st.subheader("🎯 Metas")
         if not df_mes.empty:
@@ -268,7 +263,7 @@ with col_der:
 
 st.write("")
 
-# TABLAS
+# SECCIÓN 3: TABLAS
 col_hist, col_pend = st.columns([1.5, 1], gap="medium")
 
 with col_hist:
@@ -288,7 +283,6 @@ with col_hist:
                 cc3.markdown(f":{color}[{row['Monto']:.2f}]") 
                 cc4.caption(f"{row['Categoria']} - {row['Descripcion']}")
                 
-                # BOTON DE BORRADO VITAL
                 fp = row['Fila_Original']
                 if cc5.button("🗑️", key=f"d_{fp}"):
                     borrar_registro(fp)
